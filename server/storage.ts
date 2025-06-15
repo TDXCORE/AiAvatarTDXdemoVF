@@ -52,6 +52,13 @@ export class MemStorage implements IStorage {
       ...insertMessage,
       id,
       timestamp: new Date(),
+      isVoice: insertMessage.isVoice ?? false,
+      audioData: insertMessage.audioData ?? null,
+      metadata: insertMessage.metadata ? {
+        transcriptionDuration: insertMessage.metadata.transcriptionDuration as number | undefined,
+        processingTime: insertMessage.metadata.processingTime as number | undefined,
+        vadDetected: insertMessage.metadata.vadDetected as boolean | undefined,
+      } : null,
     };
     
     const conversationMessages = this.messages.get(insertMessage.conversationId) || [];
