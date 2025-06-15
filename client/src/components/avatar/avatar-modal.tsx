@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AvatarState } from "@/types/avatar";
-import { HeyGenStreamingAPI } from "@/lib/heygen-streaming-api";
+import { SimpleHeyGenClient } from "@/lib/simple-heygen-client";
 import { AvatarPreview } from "./avatar-preview";
 import { AvatarVideoPlayer } from "./avatar-video-player";
 import { AvatarControls } from "./avatar-controls";
@@ -30,7 +30,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const heygenClientRef = useRef<HeyGenStreamingAPI | null>(null);
+  const heygenClientRef = useRef<SimpleHeyGenClient | null>(null);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
   // Audio recording functionality
@@ -80,12 +80,8 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       setAvatarState(prev => ({ ...prev, phase: 'initializing', progress: 10 }));
       
       // Initialize HeyGen client
-      heygenClientRef.current = new HeyGenStreamingAPI((phase, data) => {
-        setAvatarState(prev => ({ 
-          ...prev, 
-          phase: phase as AvatarState['phase'],
-          ...(data || {})
-        }));
+      heygenClientRef.current = new SimpleHeyGenClient((newState) => {
+        setAvatarState(prev => ({ ...prev, ...newState }));
       });
 
       // Create session
@@ -129,7 +125,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       
       const transcriptionResult: TranscriptionResult = await transcribeResponse.json();
       
-      // Send to psychological agent with avatar flag
+      // Send to psychological agent
       const agentResponse = await fetch('/api/agent', {
         method: 'POST',
         headers: {
@@ -140,7 +136,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
           sessionId,
           isVoice: true,
           isAvatarCall: true,
-          avatarSessionId: heygenClientRef.current.getSessionId(),
+          avatarSessionId: heygenClientRef.current?.getSessionId(),
           vadDetected: vadDetected,
         }),
       });
@@ -151,16 +147,10 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
 
       const result = await agentResponse.json();
       
-      // Avatar will receive the response automatically via HeyGen
-      // The response was already sent to the avatar in the backend
-      
-      setAvatarState(prev => ({ ...prev, phase: 'speaking' }));
-      
-      // Return to ready state after estimated speech time
-      const estimatedSpeechTime = result.replyText.length * 50;
-      setTimeout(() => {
-        setAvatarState(prev => ({ ...prev, phase: 'ready' }));
-      }, Math.max(estimatedSpeechTime, 2000));
+      // Send the response to the avatar
+      if (heygenClientRef.current) {
+        await heygenClientRef.current.sendMessage(result.replyText);
+      }
 
     } catch (error) {
       console.error('Error processing audio message:', error);
@@ -185,9 +175,12 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
 
   const handleVideoReady = async (videoElement: HTMLVideoElement) => {
     videoElementRef.current = videoElement;
-    if (heygenClientRef.current && avatarState.sessionId) {
+    
+    // Start streaming when video is ready and we have a session
+    if (heygenClientRef.current && avatarState.sessionId && avatarState.phase === 'preview') {
       try {
-        await heygenClientRef.current.startStreaming(videoElement);
+        console.log('Starting streaming for session:', avatarState.sessionId);
+        await heygenClientRef.current.startStreaming();
       } catch (error) {
         console.error('Failed to start streaming:', error);
         setAvatarState(prev => ({ 

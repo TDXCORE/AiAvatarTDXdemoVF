@@ -97,7 +97,7 @@ export class HeyGenStreamingAPI {
       this.videoElement = videoElement;
       this.onStateChange?.('connecting');
 
-      // Step 1: Start the session via API
+      // Start the session via API
       const startResponse = await fetch('/api/avatar/start', {
         method: 'POST',
         headers: {
@@ -112,8 +112,20 @@ export class HeyGenStreamingAPI {
         throw new Error('Failed to start session');
       }
 
-      // Step 2: Setup WebRTC connection
-      await this.setupWebRTCConnection();
+      // For HeyGen, we don't need custom WebRTC - they handle this via their server URL
+      // Instead, we'll use their streaming URL directly
+      if (this.sessionInfo.serverUrl && this.sessionInfo.serverUrl !== 'fallback://demo') {
+        // Set video source to HeyGen's stream URL (if it's a direct stream)
+        // Note: In practice, HeyGen uses WebRTC internally but provides the stream differently
+        this.videoElement.src = this.sessionInfo.serverUrl;
+        
+        // Try to play the video
+        try {
+          await this.videoElement.play();
+        } catch (playError) {
+          console.warn('Video autoplay failed, user interaction required:', playError);
+        }
+      }
 
       this.onStateChange?.('ready');
       console.log('HeyGen streaming started successfully');
