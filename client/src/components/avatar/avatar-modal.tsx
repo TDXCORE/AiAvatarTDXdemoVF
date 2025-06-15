@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AvatarState } from "@/types/avatar";
-import { HeyGenStreamingClient } from "@/lib/heygen-client";
+import { HeyGenStreamingAPI } from "@/lib/heygen-streaming-api";
 import { AvatarPreview } from "./avatar-preview";
 import { AvatarVideoPlayer } from "./avatar-video-player";
 import { AvatarControls } from "./avatar-controls";
@@ -30,7 +30,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const heygenClientRef = useRef<HeyGenStreamingClient | null>(null);
+  const heygenClientRef = useRef<HeyGenStreamingAPI | null>(null);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
   // Audio recording functionality
@@ -80,23 +80,16 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       setAvatarState(prev => ({ ...prev, phase: 'initializing', progress: 10 }));
       
       // Initialize HeyGen client
-      heygenClientRef.current = new HeyGenStreamingClient((newState) => {
-        setAvatarState(prev => ({ ...prev, ...newState }));
+      heygenClientRef.current = new HeyGenStreamingAPI((phase, data) => {
+        setAvatarState(prev => ({ 
+          ...prev, 
+          phase: phase as AvatarState['phase'],
+          ...(data || {})
+        }));
       });
 
       // Create session
-      const sessionData = await heygenClientRef.current.initializeSession('josh_lite3_20230714');
-      
-      // Set final state
-      setAvatarState(prev => ({ 
-        ...prev, 
-        phase: 'ready',
-        progress: 100,
-        sessionId: sessionData.sessionId,
-        streamUrl: sessionData.streamUrl,
-        previewUrl: sessionData.previewUrl,
-        isConnected: true
-      }));
+      await heygenClientRef.current.createSession();
 
     } catch (error) {
       console.error('Failed to initialize avatar session:', error);
@@ -190,10 +183,19 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
     setIsMuted(!isMuted);
   };
 
-  const handleVideoReady = (videoElement: HTMLVideoElement) => {
+  const handleVideoReady = async (videoElement: HTMLVideoElement) => {
     videoElementRef.current = videoElement;
-    if (heygenClientRef.current && avatarState.phase === 'ready') {
-      heygenClientRef.current.startStreaming(videoElement);
+    if (heygenClientRef.current && avatarState.sessionId) {
+      try {
+        await heygenClientRef.current.startStreaming(videoElement);
+      } catch (error) {
+        console.error('Failed to start streaming:', error);
+        setAvatarState(prev => ({ 
+          ...prev, 
+          phase: 'error', 
+          error: 'Failed to start video stream' 
+        }));
+      }
     }
   };
 
