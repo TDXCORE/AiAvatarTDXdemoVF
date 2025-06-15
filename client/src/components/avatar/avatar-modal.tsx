@@ -223,11 +223,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
                 <h2 className="text-xl font-semibold">Consulta con Dr. Carlos Mendoza</h2>
                 <p className="text-sm text-gray-600">Psicólogo Clínico Especializado</p>
               </div>
-              {avatarState.error && avatarState.error.includes('demo') && (
-                <div className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs">
-                  Modo Demo
-                </div>
-              )}
+
             </div>
           </div>
 
