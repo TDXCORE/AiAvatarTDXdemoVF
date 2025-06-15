@@ -20,6 +20,7 @@ export const messages = pgTable("messages", {
     transcriptionDuration?: number;
     processingTime?: number;
     vadDetected?: boolean;
+    agentType?: string;
   }>(),
 });
 

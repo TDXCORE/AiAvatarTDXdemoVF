@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertConversationSchema, insertMessageSchema } from "@shared/schema";
 import multer from "multer";
 import { PsychologicalAgent } from "./psychological-agent.js";
+import { addSessionEndpoints } from "./session-endpoints.js";
 
 // Configure multer for audio file uploads
 const upload = multer({
@@ -158,11 +159,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
+      // Get session state for context
+      const sessionState = psychologicalAgent.getSessionState(sessionId);
+      
       res.json({
         replyText: assistantReply,
         processingTime,
         contextState: {
-          messageCount: conversationHistory.length + 1
+          messageCount: (await storage.getMessages(sessionId)).length,
+          sessionPhase: sessionState?.phase || 'intake',
+          symptomsDetected: sessionState?.symptoms.length || 0,
+          riskFactors: sessionState?.riskFactors.length || 0
         }
       });
 
@@ -196,6 +203,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Add session management endpoints
+  addSessionEndpoints(app, psychologicalAgent);
 
   const httpServer = createServer(app);
   return httpServer;
