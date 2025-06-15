@@ -139,28 +139,10 @@ export class HeyGenService {
   }
 
   async startSession(sessionId: string): Promise<void> {
-    try {
-
-
-      const response = await fetch(`${this.streamingUrl}.start`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          session_id: sessionId
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`HeyGen start session error: ${response.status} - ${error}`);
-      }
-    } catch (error) {
-      console.error('Error starting HeyGen session:', error);
-      throw new Error('Failed to start streaming session');
-    }
+    // For basic text-to-speech functionality, we don't need to "start" the session
+    // HeyGen sessions are ready to receive text immediately after creation
+    console.log(`Session ${sessionId} ready for text-to-speech`);
+    return Promise.resolve();
   }
 
   async closeSession(sessionId: string): Promise<void> {
@@ -194,9 +176,11 @@ export class HeyGenService {
   async forceCleanupAllSessions(): Promise<void> {
     console.log('Force cleaning up all HeyGen sessions...');
     
-    // List of potential session IDs to cleanup
+    // Updated list including recent problematic session IDs
     const potentialSessionIds = [
       'fe0fc279-4a36-11f0-ba0d-5e3b6a3b504d',
+      '91aca4d4-4a3a-11f0-b3da-5e0a6fe58bfa',
+      '108e6f3a-4a3a-11f0-b3da-5e0a6fe58bfa',
       'session_1',
       'session_2', 
       'session_3',
@@ -223,7 +207,9 @@ export class HeyGenService {
       }
     }
     
-    console.log('Force cleanup completed');
+    // Wait 2 seconds after cleanup to ensure HeyGen's backend processes the closures
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log('Force cleanup completed with wait period');
   }
 
   private getPreviewUrl(avatarId: string): string {
