@@ -197,18 +197,74 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
 
-  // Get avatar preview (placeholder for now - would need actual preview video)
+  // Get avatar preview image
   app.get("/api/avatar/preview/:avatarId", async (req, res) => {
     try {
       const { avatarId } = req.params;
       
-      // For now, return a placeholder response
-      // In production, you would serve an actual preview video file
-      res.json({
-        success: true,
-        previewUrl: `/assets/avatar-preview-${avatarId}.mp4`,
-        message: "Preview URL generated"
+      // Create professional avatar representation SVG
+      const avatarSvg = `
+        <svg width="400" height="500" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#1E40AF;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="suit" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#1F2937;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#374151;stop-opacity:1" />
+            </linearGradient>
+          </defs>
+          
+          <!-- Background -->
+          <rect width="400" height="500" fill="url(#bg)"/>
+          
+          <!-- Professional suit body -->
+          <path d="M 120 280 Q 200 250 280 280 L 280 500 L 120 500 Z" fill="url(#suit)"/>
+          
+          <!-- White shirt -->
+          <path d="M 160 280 Q 200 260 240 280 L 240 420 L 160 420 Z" fill="#FFFFFF"/>
+          
+          <!-- Tie -->
+          <rect x="190" y="280" width="20" height="140" fill="#991B1B"/>
+          
+          <!-- Face -->
+          <circle cx="200" cy="180" r="50" fill="#FEF3C7"/>
+          
+          <!-- Hair -->
+          <path d="M 150 160 Q 200 130 250 160 Q 240 140 200 140 Q 160 140 150 160" fill="#374151"/>
+          
+          <!-- Eyes -->
+          <circle cx="185" cy="170" r="3" fill="#1F2937"/>
+          <circle cx="215" cy="170" r="3" fill="#1F2937"/>
+          
+          <!-- Nose -->
+          <path d="M 198 180 L 202 180 L 200 185 Z" fill="#F59E0B"/>
+          
+          <!-- Mouth -->
+          <path d="M 190 195 Q 200 200 210 195" stroke="#1F2937" stroke-width="2" fill="none"/>
+          
+          <!-- Professional badge -->
+          <rect x="250" y="320" width="40" height="25" fill="#FFFFFF" stroke="#1F2937" stroke-width="1"/>
+          <text x="270" y="335" font-family="Arial, sans-serif" font-size="8" fill="#1F2937" text-anchor="middle">MD</text>
+          
+          <!-- Stethoscope -->
+          <path d="M 170 300 Q 180 290 190 300" stroke="#374151" stroke-width="3" fill="none"/>
+          <circle cx="170" cy="300" r="8" fill="#374151"/>
+          
+          <!-- Name and title -->
+          <rect x="50" y="420" width="300" height="60" fill="rgba(0,0,0,0.7)" rx="10"/>
+          <text x="200" y="445" font-family="Arial, sans-serif" font-size="18" fill="#FFFFFF" text-anchor="middle" font-weight="bold">Dr. Carlos Mendoza</text>
+          <text x="200" y="465" font-family="Arial, sans-serif" font-size="14" fill="#E5E7EB" text-anchor="middle">Psicólogo Clínico Especializado</text>
+        </svg>
+      `;
+      
+      res.set({
+        'Content-Type': 'image/svg+xml',
+        'Cache-Control': 'public, max-age=3600'
       });
+      res.send(avatarSvg);
+      
     } catch (error) {
       console.error('Avatar preview error:', error);
       res.status(500).json({ 
