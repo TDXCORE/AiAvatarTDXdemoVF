@@ -9,6 +9,7 @@ export interface SimpleAvatarState {
 
 export class SimpleAvatarClient {
   private sessionId: string | null = null;
+  private token: string | null = null;
   private onStateChange?: (state: Partial<SimpleAvatarState>) => void;
 
   constructor(onStateChange?: (state: Partial<SimpleAvatarState>) => void) {
@@ -19,11 +20,25 @@ export class SimpleAvatarClient {
     try {
       this.onStateChange?.({ phase: 'initializing' });
 
-      // Create a simple session for TTS
+      // 1. Create token for session hygiene
+      const tokenResponse = await fetch('/api/avatar/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (tokenResponse.ok) {
+        const tokenResult = await tokenResponse.json();
+        this.token = tokenResult.token;
+      }
+
+      // 2. Create session with REPEAT mode
       const response = await fetch('/api/avatar/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ avatarId: 'josh_lite3_20230714' })
+        body: JSON.stringify({ 
+          avatarId: 'josh_lite3_20230714',
+          taskType: 'REPEAT' // CLAVE: no streaming WebRTC
+        })
       });
 
       if (!response.ok) {
@@ -45,7 +60,7 @@ export class SimpleAvatarClient {
         isConnected: true
       });
 
-      console.log('Avatar session ready:', this.sessionId);
+      console.log('Avatar session ready with REPEAT mode:', this.sessionId);
     } catch (error) {
       console.error('Avatar initialization failed:', error);
       this.onStateChange?.({
@@ -64,13 +79,14 @@ export class SimpleAvatarClient {
     try {
       this.onStateChange?.({ phase: 'speaking' });
 
-      // Send text to HeyGen for speech synthesis
+      // Send text to HeyGen with REPEAT mode
       const response = await fetch('/api/avatar/speak', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: this.sessionId,
-          text: text
+          text: text,
+          taskType: 'REPEAT'
         })
       });
 
@@ -78,7 +94,7 @@ export class SimpleAvatarClient {
         throw new Error('Failed to send text to avatar');
       }
 
-      console.log('Avatar speaking:', text);
+      console.log('Avatar speaking with REPEAT mode:', text);
       
       // Return to ready state after estimated speech time
       const estimatedSpeechTime = text.length * 50; // 50ms per character
@@ -105,22 +121,35 @@ export class SimpleAvatarClient {
   }
 
   async close(): Promise<void> {
-    if (!this.sessionId) {
+    if (!this.sessionId && !this.token) {
       return;
     }
 
     try {
-      await fetch('/api/avatar/close', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: this.sessionId })
-      });
+      // Close session with token if available
+      if (this.token) {
+        await fetch('/api/avatar/close-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: this.token })
+        });
+      }
+
+      // Close regular session
+      if (this.sessionId) {
+        await fetch('/api/avatar/close', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: this.sessionId })
+        });
+      }
 
       console.log('Avatar session closed:', this.sessionId);
     } catch (error) {
       console.warn('Failed to close avatar session:', error);
     } finally {
       this.sessionId = null;
+      this.token = null;
     }
   }
 

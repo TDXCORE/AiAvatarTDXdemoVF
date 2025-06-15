@@ -43,7 +43,8 @@ export class HeyGenService {
           voice: {
             voice_id: '08284d3fc63a424fbe80cc1864ed2540', // Dario - Natural (Spanish Male, Interactive Avatar Compatible)
             rate: 1.0
-          }
+          },
+          task_type: "REPEAT" // CAMBIO CLAVE: evita streaming WebRTC completo
         }),
       });
 
@@ -71,7 +72,8 @@ export class HeyGenService {
               voice: {
                 voice_id: '08284d3fc63a424fbe80cc1864ed2540',
                 rate: 1.0
-              }
+              },
+              task_type: "REPEAT" // CAMBIO CLAVE: evita streaming WebRTC completo
             }),
           });
           
@@ -124,7 +126,7 @@ export class HeyGenService {
         body: JSON.stringify({
           session_id: sessionId,
           text: text,
-          task_type: 'talk'
+          task_type: 'REPEAT' // Cambio a REPEAT mode
         }),
       });
 
@@ -195,6 +197,44 @@ export class HeyGenService {
   async sendGreeting(sessionId: string): Promise<void> {
     const greeting = "¡Hola! Soy el Dr. Carlos Mendoza, psicólogo clínico. Me alegra conocerte. ¿En qué puedo ayudarte hoy?";
     await this.sendTextToSpeech(greeting, sessionId);
+  }
+
+  async createHeygenToken(): Promise<string> {
+    try {
+      const response = await fetch(`${this.streamingUrl}.create_token`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create token: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.token;
+    } catch (error) {
+      console.error('Error creating HeyGen token:', error);
+      throw error;
+    }
+  }
+
+  async closeHeygen(token: string): Promise<void> {
+    try {
+      await fetch(`${this.streamingUrl}.close_session`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token })
+      });
+      console.log('HeyGen session closed with token:', token);
+    } catch (error) {
+      console.warn('Failed to close HeyGen session:', error);
+    }
   }
 
   async forceCleanupAllSessions(): Promise<void> {

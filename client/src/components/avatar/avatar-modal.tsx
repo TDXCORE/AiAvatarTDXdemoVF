@@ -39,20 +39,8 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
     },
   });
 
-  // Voice activity detection
-  const { vadDetected } = useVoiceActivity({
-    sensitivity: 70,
-    onSpeechStart: () => {
-      if (!isRecording && !isMuted && avatarState.phase === 'ready') {
-        startRecording();
-      }
-    },
-    onSpeechEnd: () => {
-      if (isRecording) {
-        stopRecording();
-      }
-    },
-  });
+  // Simplified - eliminamos VAD duplicado como sugiere la lógica
+  const vadDetected = false;
 
   useEffect(() => {
     if (isOpen) {
