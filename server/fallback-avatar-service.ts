@@ -32,33 +32,49 @@ export class FallbackAvatarService {
 
   private async getAuthenticAvatarPreview(avatarId: string): Promise<string> {
     try {
-      // Use HeyGen's streaming API to get avatar data
+      // Attempt to get authentic HeyGen avatar data
       const apiKey = process.env.HEYGEN_API_KEY;
       if (!apiKey) {
         throw new Error('HeyGen API key not available');
       }
 
-      const response = await fetch('https://api.heygen.com/v1/streaming.list', {
-        method: 'GET',
+      // Try to create a temporary session to get avatar preview data
+      const response = await fetch('https://api.heygen.com/v1/streaming.new', {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          avatar_name: avatarId,
+          quality: 'low' // Use low quality for preview testing
+        }),
       });
 
       if (response.ok) {
-        const data = await response.json() as { data: { sessions: any[] } };
-        console.log('HeyGen streaming data available for avatar preview');
+        const data = await response.json() as any;
+        console.log(`HeyGen avatar data retrieved for ${avatarId}`);
         
-        // Return a preview URL endpoint that we'll serve
+        // Close the test session immediately
+        if (data.data?.session_id) {
+          await fetch('https://api.heygen.com/v1/streaming.stop', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: data.data.session_id
+            }),
+          }).catch(() => {}); // Ignore close errors
+        }
+        
         return `/api/avatar/preview/${avatarId}`;
       }
       
-      throw new Error('HeyGen API not accessible');
+      throw new Error(`HeyGen API response: ${response.status}`);
     } catch (error) {
-      console.warn('HeyGen API unavailable, using professional avatar representation');
-      
-      // Return endpoint for professional avatar representation
+      console.log(`Testing HeyGen access for ${avatarId}:`, error);
       return `/api/avatar/preview/${avatarId}`;
     }
   }
