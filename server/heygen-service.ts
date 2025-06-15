@@ -28,6 +28,9 @@ export class HeyGenService {
 
   async createStreamingSession(avatarId?: string): Promise<HeyGenSessionData> {
     try {
+      // Force cleanup all existing sessions first
+      await this.forceCleanupAllSessions();
+      
       const response = await fetch(`${this.streamingUrl}.new`, {
         method: 'POST',
         headers: {
@@ -48,20 +51,48 @@ export class HeyGenService {
         const errorText = await response.text();
         console.error('HeyGen API error:', response.status, '-', errorText);
         
-        // Handle concurrent limit gracefully
+        // If concurrent limit reached, try aggressive cleanup and retry
         if (response.status === 400 && errorText.includes('Concurrent limit reached')) {
-          console.log('HeyGen concurrent limit reached, using fallback mode');
+          console.log('Concurrent limit reached, doing aggressive cleanup and retry...');
+          await this.forceCleanupAllSessions();
+          
+          // Wait 3 seconds and retry
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          
+          const retryResponse = await fetch(`${this.streamingUrl}.new`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              quality: 'high',
+              avatar_name: avatarId || 'josh_lite3_20230714',
+              voice: {
+                voice_id: '08284d3fc63a424fbe80cc1864ed2540',
+                rate: 1.0
+              }
+            }),
+          });
+          
+          if (!retryResponse.ok) {
+            const retryErrorText = await retryResponse.text();
+            console.error('HeyGen retry failed:', retryResponse.status, '-', retryErrorText);
+            throw new Error(`HeyGen API error after cleanup retry: ${retryResponse.status} - ${retryErrorText}`);
+          }
+          
+          const retryData = await retryResponse.json() as { data: HeyGenStreamingSession };
+          console.log('HeyGen session created successfully after retry');
           return {
-            sessionId: `fallback_${Date.now()}`,
-            sessionToken: 'fallback_token',
-            streamUrl: 'fallback://demo',
+            sessionId: retryData.data.session_id,
+            sessionToken: retryData.data.session_token,
+            streamUrl: retryData.data.server_url,
             previewUrl: this.getPreviewUrl(avatarId || 'josh_lite3_20230714'),
-            estimatedReadyTime: 1000
+            estimatedReadyTime: 30000
           };
         }
         
         console.error('HeyGen API error details:', errorText);
-        
         throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
       }
 
@@ -82,11 +113,7 @@ export class HeyGenService {
 
   async sendTextToSpeech(text: string, sessionId: string): Promise<void> {
     try {
-      // Handle fallback sessions
-      if (sessionId.startsWith('fallback_')) {
-        console.log(`Fallback mode: Would send text to avatar: "${text}"`);
-        return;
-      }
+
 
       const response = await fetch(`${this.streamingUrl}.task`, {
         method: 'POST',
@@ -113,11 +140,7 @@ export class HeyGenService {
 
   async startSession(sessionId: string): Promise<void> {
     try {
-      // Handle fallback sessions
-      if (sessionId.startsWith('fallback_')) {
-        console.log('Fallback mode: Session started successfully');
-        return;
-      }
+
 
       const response = await fetch(`${this.streamingUrl}.start`, {
         method: 'POST',
@@ -172,9 +195,44 @@ export class HeyGenService {
     await this.sendTextToSpeech(greeting, sessionId);
   }
 
+  async forceCleanupAllSessions(): Promise<void> {
+    console.log('Force cleaning up all HeyGen sessions...');
+    
+    // List of potential session IDs to cleanup
+    const potentialSessionIds = [
+      'fe0fc279-4a36-11f0-ba0d-5e3b6a3b504d',
+      'session_1',
+      'session_2', 
+      'session_3',
+      'session_4',
+      'session_5'
+    ];
+    
+    for (const sessionId of potentialSessionIds) {
+      try {
+        const response = await fetch(`${this.streamingUrl}.stop`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+        
+        if (response.ok) {
+          console.log(`Cleaned session: ${sessionId}`);
+        }
+      } catch (error) {
+        // Ignore errors for non-existent sessions
+      }
+    }
+    
+    console.log('Force cleanup completed');
+  }
+
   private getPreviewUrl(avatarId: string): string {
-    // Return a preview URL for the avatar (static image or short video loop)
-    return `/api/avatar/preview/${avatarId}`;
+    // Return HeyGen's actual preview URL
+    return `https://resource.heygen.ai/avatar/preview/${avatarId}.jpg`;
   }
 
   async getAvatarList(): Promise<string[]> {
