@@ -5,6 +5,53 @@ import fs from "fs";
 
 export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
   
+  // Create avatar token for session hygiene
+  app.post("/api/avatar/token", async (req, res) => {
+    try {
+      const token = await heygenService.createHeygenToken();
+      
+      res.json({
+        success: true,
+        token: token
+      });
+    } catch (error) {
+      console.error('Avatar token creation error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to create avatar token",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Close avatar session with token
+  app.post("/api/avatar/close-token", async (req, res) => {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          message: "Token is required"
+        });
+      }
+
+      await heygenService.closeHeygen(token);
+      
+      res.json({
+        success: true,
+        message: "Avatar session closed with token"
+      });
+    } catch (error) {
+      console.error('Avatar token close error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to close avatar session with token",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
   // Create new avatar streaming session
   app.post("/api/avatar/session", async (req, res) => {
     try {

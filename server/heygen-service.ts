@@ -213,7 +213,7 @@ export class HeyGenService {
         throw new Error(`Failed to create token: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { token: string };
       return data.token;
     } catch (error) {
       console.error('Error creating HeyGen token:', error);
