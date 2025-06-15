@@ -36,11 +36,10 @@ export class HeyGenService {
         },
         body: JSON.stringify({
           quality: 'high',
-          avatar_name: avatarId || 'josh_lite3_20230714', // Default avatar
+          avatar_name: avatarId || 'Dexter_Doctor_Standing2_public', // Default avatar
           voice: {
-            voice_id: 'es-ES-AlvaroNeural', // Spanish voice
-            rate: 1.0,
-            emotion: 'Friendly'
+            voice_id: 'BV406_en_female_madison', // Default English voice for now
+            rate: 1.0
           }
         }),
       });
@@ -162,7 +161,7 @@ export class HeyGenService {
       return data.data.avatars.map(avatar => avatar.avatar_id);
     } catch (error) {
       console.warn('Error fetching avatars:', error);
-      return ['josh_lite3_20230714']; // Fallback
+      return ['Dexter_Doctor_Standing2_public']; // Fallback
     }
   }
 }
