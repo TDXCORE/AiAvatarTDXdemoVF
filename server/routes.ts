@@ -5,6 +5,8 @@ import { insertConversationSchema, insertMessageSchema } from "@shared/schema";
 import multer from "multer";
 import { PsychologicalAgent } from "./psychological-agent.js";
 import { addSessionEndpoints } from "./session-endpoints.js";
+import { HeyGenService } from "./heygen-service.js";
+import { addAvatarRoutes } from "./avatar-routes.js";
 
 // Configure multer for audio file uploads
 const upload = multer({
@@ -22,8 +24,9 @@ const upload = multer({
   },
 });
 
-// Initialize psychological agent
+// Initialize psychological agent and HeyGen service
 const psychologicalAgent = new PsychologicalAgent(storage);
+const heygenService = new HeyGenService();
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -135,6 +138,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assistantReply = await psychologicalAgent.processMessage(sessionId, inputText);
       const processingTime = Date.now() - startTime;
 
+      // If this is an avatar call, send the response to HeyGen
+      if (req.body.isAvatarCall && req.body.avatarSessionId) {
+        try {
+          await heygenService.sendTextToSpeech(assistantReply, req.body.avatarSessionId);
+        } catch (error) {
+          console.error('Failed to send response to avatar:', error);
+          // Continue anyway - the text response will still be returned
+        }
+      }
+
       // Store both user message and assistant reply
       await storage.addMessage({
         conversationId: sessionId,
@@ -155,7 +168,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isVoice: false,
         metadata: {
           processingTime,
-          agentType: "psychological"
+          agentType: "psychological",
+          avatarProcessed: req.body.isAvatarCall || false
         }
       });
 
@@ -169,7 +183,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           messageCount: (await storage.getMessages(sessionId)).length,
           sessionPhase: sessionState?.phase || 'intake',
           symptomsDetected: sessionState?.symptoms.length || 0,
-          riskFactors: sessionState?.riskFactors.length || 0
+          riskFactors: sessionState?.riskFactors.length || 0,
+          avatarProcessed: req.body.isAvatarCall || false
         }
       });
 
@@ -206,6 +221,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Add session management endpoints
   addSessionEndpoints(app, psychologicalAgent);
+  
+  // Add avatar endpoints
+  addAvatarRoutes(app, heygenService);
 
   const httpServer = createServer(app);
   return httpServer;

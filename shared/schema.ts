@@ -21,6 +21,7 @@ export const messages = pgTable("messages", {
     processingTime?: number;
     vadDetected?: boolean;
     agentType?: string;
+    avatarProcessed?: boolean;
   }>(),
 });
 
