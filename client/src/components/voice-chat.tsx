@@ -3,6 +3,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { MessageBubble } from './message-bubble';
 import { VoiceControls } from './voice-controls';
 import { VoiceRecorder } from './voice-recorder';
+import { CallButton } from './avatar/call-button';
+import { AvatarModal } from './avatar/avatar-modal';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -27,6 +29,7 @@ export function VoiceChat() {
   const [showSettings, setShowSettings] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const [settings, setSettings] = useState<VoiceSettings>({
@@ -301,6 +304,7 @@ export function VoiceChat() {
               variant="ghost"
               size="sm"
               className="p-2 hover:bg-white/10 rounded-full text-white"
+              onClick={() => setIsAvatarModalOpen(true)}
             >
               <Phone className="w-5 h-5" />
             </Button>
@@ -504,6 +508,13 @@ export function VoiceChat() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Avatar Modal */}
+      <AvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        sessionId={conversation?.sessionId || ''}
+      />
     </div>
   );
 }
