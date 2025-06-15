@@ -71,6 +71,38 @@ export function AvatarVideoPlayer({ avatarState, onVideoReady }: AvatarVideoPlay
     }
   };
 
+  // Handle fallback mode - show voice chat interface
+  if (avatarState.sessionId?.startsWith('fallback_') || avatarState.error?.includes('modo de chat por voz')) {
+    return (
+      <div className="relative w-full h-full bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-800 dark:to-gray-900 rounded-lg overflow-hidden border-2 border-green-200 dark:border-green-800">
+        <div className="flex items-center justify-center h-full p-6">
+          <div className="text-center">
+            <div className="w-24 h-24 mx-auto mb-4 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+              <svg className="w-12 h-12 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Dr. Carlos Mendoza</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Psicólogo Clínico</p>
+            <div className="bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full inline-block mb-4">
+              <p className="text-xs text-green-700 dark:text-green-300">Chat por voz disponible</p>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 max-w-xs">
+              El video no está disponible temporalmente. Utiliza los controles de voz para iniciar tu consulta.
+            </p>
+          </div>
+        </div>
+        
+        {/* Connection indicator */}
+        <div className="absolute top-4 right-4">
+          <div className="w-3 h-3 rounded-full bg-green-500" />
+        </div>
+
+        {renderStateOverlay()}
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full h-full bg-gray-900 rounded-lg overflow-hidden">
       <video

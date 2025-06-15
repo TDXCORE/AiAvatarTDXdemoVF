@@ -39,12 +39,16 @@ export class HeyGenStreamingClient {
       this.sessionId = data.sessionId;
       this.streamUrl = data.streamUrl;
 
+      // Check if this is a fallback session
+      const isFallbackSession = data.sessionId.startsWith('fallback_');
+
       this.updateState({ 
-        phase: 'preview', 
+        phase: isFallbackSession ? 'preview' : 'ready', 
         sessionId: data.sessionId,
         streamUrl: data.streamUrl,
         previewUrl: data.previewUrl,
-        progress: 60
+        progress: isFallbackSession ? 100 : 60,
+        error: isFallbackSession ? 'Usando modo de chat por voz - Video no disponible temporalmente' : null
       });
 
       return data;
@@ -64,6 +68,17 @@ export class HeyGenStreamingClient {
     }
 
     this.videoElement = videoElement;
+
+    // Handle fallback sessions - skip WebRTC setup
+    if (this.sessionId.startsWith('fallback_')) {
+      this.updateState({ 
+        phase: 'ready', 
+        isConnected: true,
+        progress: 100
+      });
+      return;
+    }
+
     this.updateState({ phase: 'connecting', progress: 60 });
 
     // Start the session first via API
