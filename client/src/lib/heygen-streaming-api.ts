@@ -120,7 +120,7 @@ export class HeyGenStreamingAPI {
 
     } catch (error) {
       console.error('Failed to start streaming:', error);
-      this.onStateChange?.('error', { error: error.message });
+      this.onStateChange?.('error', { error: error instanceof Error ? error.message : 'Streaming failed' });
       throw error;
     }
   }
@@ -241,7 +241,7 @@ export class HeyGenStreamingAPI {
       console.log('Message sent to avatar:', text);
     } catch (error) {
       console.error('Failed to send message:', error);
-      this.onStateChange?.('error', { error: error.message });
+      this.onStateChange?.('error', { error: error instanceof Error ? error.message : 'Message send failed' });
       throw error;
     }
   }
