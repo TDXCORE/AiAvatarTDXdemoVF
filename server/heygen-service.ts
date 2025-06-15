@@ -38,7 +38,7 @@ export class HeyGenService {
           quality: 'high',
           avatar_name: avatarId || 'Dexter_Doctor_Standing2_public', // Default avatar
           voice: {
-            voice_id: '6861d3de6a904aeeb20feb8d4238cfd4', // Mateo - Warm (Spanish Male)
+            voice_id: '08284d3fc63a424fbe80cc1864ed2540', // Dario - Natural (Spanish Male, Interactive Avatar Compatible)
             rate: 1.0
           }
         }),
