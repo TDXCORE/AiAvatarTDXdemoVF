@@ -69,7 +69,7 @@ export class HeyGenService {
         sessionId: data.data.session_id,
         sessionToken: data.data.session_token,
         streamUrl: data.data.server_url,
-        previewUrl: this.getPreviewUrl(avatarId || 'josh_lite3_20230714'),
+        previewUrl: this.getPreviewUrl(avatarId || 'Dexter_Doctor_Standing2_public'),
         estimatedReadyTime: 2000 // 2 seconds
       };
     } catch (error) {
@@ -80,6 +80,12 @@ export class HeyGenService {
 
   async sendTextToSpeech(text: string, sessionId: string): Promise<void> {
     try {
+      // Handle demo sessions
+      if (sessionId.startsWith('demo_')) {
+        console.log(`Demo mode: Would send text to avatar: "${text}"`);
+        return;
+      }
+
       const response = await fetch(`${this.streamingUrl}.task`, {
         method: 'POST',
         headers: {
@@ -105,6 +111,12 @@ export class HeyGenService {
 
   async startSession(sessionId: string): Promise<void> {
     try {
+      // Handle demo sessions
+      if (sessionId.startsWith('demo_')) {
+        console.log('Demo mode: Session started successfully');
+        return;
+      }
+
       const response = await fetch(`${this.streamingUrl}.start`, {
         method: 'POST',
         headers: {
@@ -128,6 +140,12 @@ export class HeyGenService {
 
   async closeSession(sessionId: string): Promise<void> {
     try {
+      // Handle demo sessions
+      if (sessionId.startsWith('demo_')) {
+        console.log('Demo mode: Session closed successfully');
+        return;
+      }
+
       const response = await fetch(`${this.streamingUrl}.stop`, {
         method: 'POST',
         headers: {
