@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AvatarState } from "@/types/avatar";
-import { SimpleHeyGenClient } from "@/lib/simple-heygen-client";
-import { AvatarPreview } from "./avatar-preview";
-import { AvatarVideoPlayer } from "./avatar-video-player";
+import { SimpleAvatarClient, SimpleAvatarState } from "@/lib/avatar-simple-client";
+import { AnimatedAvatarDisplay } from "./animated-avatar-display";
 import { AvatarControls } from "./avatar-controls";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { useVoiceActivity } from "@/hooks/use-voice-activity";
@@ -17,20 +16,18 @@ interface AvatarModalProps {
 }
 
 export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
-  const [avatarState, setAvatarState] = useState<AvatarState>({
+  const [avatarState, setAvatarState] = useState<SimpleAvatarState>({
     phase: 'initializing',
     isConnected: false,
     sessionId: null,
-    streamUrl: null,
     previewUrl: null,
     error: null,
-    progress: 0,
   });
 
   const [isMuted, setIsMuted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const heygenClientRef = useRef<SimpleHeyGenClient | null>(null);
+  const avatarClientRef = useRef<SimpleAvatarClient | null>(null);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
 
   // Audio recording functionality
