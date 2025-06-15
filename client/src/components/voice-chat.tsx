@@ -31,7 +31,7 @@ export function VoiceChat() {
   
   const [settings, setSettings] = useState<VoiceSettings>({
     vadSensitivity: 70,
-    language: 'en',
+    language: 'es',
     autoSend: true,
   });
 
