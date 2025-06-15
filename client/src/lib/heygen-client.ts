@@ -33,16 +33,12 @@ export class HeyGenStreamingClient {
       this.sessionId = data.sessionId;
       this.streamUrl = data.streamUrl;
 
-      // Check if this is a demo session
-      const isDemoSession = data.sessionId.startsWith('demo_');
-
       this.updateState({ 
-        phase: isDemoSession ? 'preview' : 'ready', 
+        phase: 'ready', 
         sessionId: data.sessionId,
         streamUrl: data.streamUrl,
         previewUrl: data.previewUrl,
-        progress: isDemoSession ? 100 : 80,
-        error: isDemoSession ? 'Modo demo: Límite de API alcanzado' : null
+        progress: 80
       });
 
       return data;

@@ -36,7 +36,7 @@ export class HeyGenService {
         },
         body: JSON.stringify({
           quality: 'high',
-          avatar_name: avatarId || 'Dexter_Doctor_Standing2_public', // Default avatar
+          avatar_name: avatarId || 'josh_lite3_20230714', // Public avatar
           voice: {
             voice_id: '08284d3fc63a424fbe80cc1864ed2540', // Dario - Natural (Spanish Male, Interactive Avatar Compatible)
             rate: 1.0
@@ -48,17 +48,8 @@ export class HeyGenService {
         const errorText = await response.text();
         console.error('HeyGen API error:', response.status, '-', errorText);
         
-        // Handle concurrent limit gracefully for demo purposes
-        if (response.status === 400 && errorText.includes('Concurrent limit reached')) {
-          console.log('HeyGen concurrent limit reached, returning demo session');
-          return {
-            sessionId: `demo_${Date.now()}`,
-            sessionToken: 'demo_token',
-            streamUrl: 'demo://fallback',
-            previewUrl: this.getPreviewUrl(avatarId || 'Dexter_Doctor_Standing2_public'),
-            estimatedReadyTime: 1000
-          };
-        }
+        // Log API errors but don't use demo mode since credits are available
+        console.error('HeyGen API error details:', errorText);
         
         throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
       }
@@ -69,7 +60,7 @@ export class HeyGenService {
         sessionId: data.data.session_id,
         sessionToken: data.data.session_token,
         streamUrl: data.data.server_url,
-        previewUrl: this.getPreviewUrl(avatarId || 'Dexter_Doctor_Standing2_public'),
+        previewUrl: this.getPreviewUrl(avatarId || 'josh_lite3_20230714'),
         estimatedReadyTime: 2000 // 2 seconds
       };
     } catch (error) {
@@ -80,11 +71,6 @@ export class HeyGenService {
 
   async sendTextToSpeech(text: string, sessionId: string): Promise<void> {
     try {
-      // Handle demo sessions
-      if (sessionId.startsWith('demo_')) {
-        console.log(`Demo mode: Would send text to avatar: "${text}"`);
-        return;
-      }
 
       const response = await fetch(`${this.streamingUrl}.task`, {
         method: 'POST',
@@ -111,11 +97,6 @@ export class HeyGenService {
 
   async startSession(sessionId: string): Promise<void> {
     try {
-      // Handle demo sessions
-      if (sessionId.startsWith('demo_')) {
-        console.log('Demo mode: Session started successfully');
-        return;
-      }
 
       const response = await fetch(`${this.streamingUrl}.start`, {
         method: 'POST',
@@ -140,11 +121,6 @@ export class HeyGenService {
 
   async closeSession(sessionId: string): Promise<void> {
     try {
-      // Handle demo sessions
-      if (sessionId.startsWith('demo_')) {
-        console.log('Demo mode: Session closed successfully');
-        return;
-      }
 
       const response = await fetch(`${this.streamingUrl}.stop`, {
         method: 'POST',
@@ -193,7 +169,7 @@ export class HeyGenService {
       return data.data.avatars.map(avatar => avatar.avatar_id);
     } catch (error) {
       console.warn('Error fetching avatars:', error);
-      return ['Dexter_Doctor_Standing2_public']; // Fallback
+      return ['josh_lite3_20230714']; // Fallback
     }
   }
 }
