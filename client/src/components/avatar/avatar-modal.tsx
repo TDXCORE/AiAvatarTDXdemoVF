@@ -101,12 +101,12 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
 
       const transcriptionResult: TranscriptionResult = await transcriptionResponse.json();
       
-      if (!transcriptionResult.text || transcriptionResult.text.trim().length === 0) {
+      if (!transcriptionResult.transcription || transcriptionResult.transcription.trim().length === 0) {
         console.warn('No text transcribed from audio');
         return;
       }
 
-      console.log('User said:', transcriptionResult.text);
+      console.log('User said:', transcriptionResult.transcription);
 
       // Get AI response
       const chatResponse = await fetch('/api/chat', {
@@ -114,7 +114,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: sessionId,
-          message: transcriptionResult.text,
+          message: transcriptionResult.transcription,
         }),
       });
 
