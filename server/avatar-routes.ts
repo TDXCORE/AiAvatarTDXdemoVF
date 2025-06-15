@@ -11,9 +11,6 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
       const { avatarId } = req.body;
       const sessionData = await heygenService.createStreamingSession(avatarId);
       
-      // Start the session immediately
-      await heygenService.startSession(sessionData.sessionId);
-      
       res.json({
         success: true,
         data: sessionData
@@ -23,6 +20,34 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
       res.status(500).json({ 
         success: false,
         message: "Failed to create avatar session",
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // Start avatar session (separate endpoint)
+  app.post("/api/avatar/start", async (req, res) => {
+    try {
+      const { sessionId } = req.body;
+      
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          message: "SessionId is required"
+        });
+      }
+
+      await heygenService.startSession(sessionId);
+      
+      res.json({
+        success: true,
+        message: "Avatar session started"
+      });
+    } catch (error) {
+      console.error('Avatar start error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to start avatar session",
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }

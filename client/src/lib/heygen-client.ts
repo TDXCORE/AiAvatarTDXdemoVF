@@ -59,6 +59,22 @@ export class HeyGenStreamingClient {
     this.videoElement = videoElement;
     this.updateState({ phase: 'connecting', progress: 60 });
 
+    // Start the session first via API
+    try {
+      const response = await fetch('/api/avatar/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.sessionId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start session');
+      }
+    } catch (error) {
+      console.error('Start session failed:', error);
+      throw error;
+    }
+
     try {
       // Initialize WebRTC connection for HeyGen streaming
       this.peerConnection = new RTCPeerConnection({
@@ -144,6 +160,27 @@ export class HeyGenStreamingClient {
         phase: 'error', 
         error: error instanceof Error ? error.message : 'Failed to speak' 
       });
+      throw error;
+    }
+  }
+
+  async callStartSession(): Promise<void> {
+    if (!this.sessionId) {
+      throw new Error('No active session');
+    }
+
+    try {
+      const response = await fetch('/api/avatar/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.sessionId })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start session');
+      }
+    } catch (error) {
+      console.error('Start session failed:', error);
       throw error;
     }
   }

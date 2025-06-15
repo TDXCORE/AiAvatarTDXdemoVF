@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AvatarState } from "@/types/avatar";
 import { HeyGenStreamingClient } from "@/lib/heygen-client";
 import { AvatarPreview } from "./avatar-preview";
@@ -214,6 +214,9 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       <DialogContent className="max-w-4xl h-[80vh] p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Consulta con Dr. Carlos Mendoza</DialogTitle>
+          <DialogDescription>
+            Sesión de consulta psicológica virtual con avatar interactivo
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col h-full">
           {/* Header */}
