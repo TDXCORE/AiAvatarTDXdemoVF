@@ -38,15 +38,29 @@ export class HeyGenService {
           quality: 'high',
           avatar_name: avatarId || 'Dexter_Doctor_Standing2_public', // Default avatar
           voice: {
-            voice_id: 'BV406_en_female_madison', // Default English voice for now
+            voice_id: '6861d3de6a904aeeb20feb8d4238cfd4', // Mateo - Warm (Spanish Male)
             rate: 1.0
           }
         }),
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`HeyGen API error: ${response.status} - ${error}`);
+        const errorText = await response.text();
+        console.error('HeyGen API error:', response.status, '-', errorText);
+        
+        // Handle concurrent limit gracefully for demo purposes
+        if (response.status === 400 && errorText.includes('Concurrent limit reached')) {
+          console.log('HeyGen concurrent limit reached, returning demo session');
+          return {
+            sessionId: `demo_${Date.now()}`,
+            sessionToken: 'demo_token',
+            streamUrl: 'demo://fallback',
+            previewUrl: this.getPreviewUrl(avatarId || 'Dexter_Doctor_Standing2_public'),
+            estimatedReadyTime: 1000
+          };
+        }
+        
+        throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json() as { data: HeyGenStreamingSession };
