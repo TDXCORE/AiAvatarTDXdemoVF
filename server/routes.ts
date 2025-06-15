@@ -62,12 +62,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No audio file provided" });
       }
 
-      const groqApiKey = process.env.GROQ_API_KEY || process.env.GROQ_API_KEY_ENV_VAR;
+      const groqApiKey = process.env.GROQ_API_KEY;
+      const startTime = Date.now();
+
       if (!groqApiKey) {
         return res.status(500).json({ message: "Groq API key not configured" });
       }
-
-      const startTime = Date.now();
 
       // Create FormData for Groq API
       const formData = new FormData();
