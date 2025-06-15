@@ -77,7 +77,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
 
   const initializeAvatarSession = async () => {
     try {
-      setAvatarState(prev => ({ ...prev, phase: 'preview', progress: 10 }));
+      setAvatarState(prev => ({ ...prev, phase: 'initializing', progress: 10 }));
       
       // Initialize HeyGen client
       heygenClientRef.current = new HeyGenStreamingClient((newState) => {
@@ -85,30 +85,35 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       });
 
       // Create session
-      const sessionData = await heygenClientRef.current.initializeSession();
+      const sessionData = await heygenClientRef.current.initializeSession('josh_lite3_20230714');
       
-      // Wait a bit for smooth transition
-      setTimeout(() => {
-        setAvatarState(prev => ({ 
-          ...prev, 
-          phase: 'ready',
-          progress: 100,
-          ...sessionData 
-        }));
-      }, 1500);
+      // Set final state
+      setAvatarState(prev => ({ 
+        ...prev, 
+        phase: 'ready',
+        progress: 100,
+        sessionId: sessionData.sessionId,
+        streamUrl: sessionData.streamUrl,
+        previewUrl: sessionData.previewUrl,
+        isConnected: true
+      }));
 
     } catch (error) {
       console.error('Failed to initialize avatar session:', error);
       setAvatarState(prev => ({ 
         ...prev, 
         phase: 'error', 
-        error: error instanceof Error ? error.message : 'Connection failed' 
+        error: error instanceof Error ? error.message : 'Connection failed',
+        isConnected: false
       }));
     }
   };
 
   const processAudioMessage = async (audioBlob: Blob) => {
-    if (!heygenClientRef.current?.getSessionId()) return;
+    if (!heygenClientRef.current?.getSessionId()) {
+      console.warn('No active avatar session for audio processing');
+      return;
+    }
 
     setIsProcessing(true);
     setAvatarState(prev => ({ ...prev, phase: 'listening' }));

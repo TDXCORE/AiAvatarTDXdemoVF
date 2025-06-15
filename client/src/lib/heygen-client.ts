@@ -26,26 +26,33 @@ export class HeyGenStreamingClient {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create avatar session');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to create avatar session');
       }
 
       const { data } = await response.json();
+      
+      if (!data?.sessionId) {
+        throw new Error('Invalid session data received');
+      }
+
       this.sessionId = data.sessionId;
       this.streamUrl = data.streamUrl;
 
       this.updateState({ 
-        phase: 'ready', 
+        phase: 'preview', 
         sessionId: data.sessionId,
         streamUrl: data.streamUrl,
         previewUrl: data.previewUrl,
-        progress: 80
+        progress: 60
       });
 
       return data;
     } catch (error) {
+      console.error('Session initialization failed:', error);
       this.updateState({ 
         phase: 'error', 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: error instanceof Error ? error.message : 'Failed to initialize session' 
       });
       throw error;
     }
