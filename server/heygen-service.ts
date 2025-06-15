@@ -165,11 +165,7 @@ export class HeyGenService {
 
   async closeSession(sessionId: string): Promise<void> {
     try {
-      // Handle fallback sessions
-      if (sessionId.startsWith('fallback_')) {
-        console.log('Fallback mode: Session closed successfully');
-        return;
-      }
+
 
       const response = await fetch(`${this.streamingUrl}.stop`, {
         method: 'POST',
