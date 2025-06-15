@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertConversationSchema, insertMessageSchema } from "@shared/schema";
 import multer from "multer";
+import { PsychologicalAgent } from "./psychological-agent.js";
 
 // Configure multer for audio file uploads
 const upload = multer({
@@ -19,6 +20,9 @@ const upload = multer({
     }
   },
 });
+
+// Initialize psychological agent
+const psychologicalAgent = new PsychologicalAgent(storage);
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -124,56 +128,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(500).json({ message: "Groq API key not configured" });
       }
 
-      // Get recent conversation context
-      const recentMessages = await storage.getRecentMessages(sessionId, 6);
-      
-      // Build conversation context for LLM
-      const conversationHistory = recentMessages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
-
-      // Add current user message
-      conversationHistory.push({
-        role: "user",
-        content: inputText
-      });
-
       const startTime = Date.now();
 
-      // Call Groq LLM API
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${groqApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            {
-              role: 'system',
-              content: 'Eres un asistente de IA por voz útil. Responde SIEMPRE en español. Proporciona respuestas concisas y conversacionales que funcionen bien para la interacción por voz. Mantén las respuestas bajo 100 palabras cuando sea posible.'
-            },
-            ...conversationHistory
-          ],
-          temperature: 0.7,
-          max_tokens: 500,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Groq LLM API error:', errorText);
-        return res.status(response.status).json({ 
-          message: `LLM processing failed: ${response.statusText}` 
-        });
-      }
-
-      const llmResult = await response.json();
+      // Use psychological agent instead of direct Groq API call
+      const assistantReply = await psychologicalAgent.processMessage(sessionId, inputText);
       const processingTime = Date.now() - startTime;
-
-      const assistantReply = llmResult.choices?.[0]?.message?.content || "I apologize, but I couldn't generate a response.";
 
       // Store both user message and assistant reply
       await storage.addMessage({
@@ -195,6 +154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isVoice: false,
         metadata: {
           processingTime,
+          agentType: "psychological"
         }
       });
 
