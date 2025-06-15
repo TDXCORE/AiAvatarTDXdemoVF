@@ -39,7 +39,7 @@ export class HeyGenService {
         },
         body: JSON.stringify({
           quality: 'high',
-          avatar_name: avatarId || 'josh_lite3_20230714', // Public avatar
+          avatar_name: avatarId || 'Dexter_Doctor_Standing2_public', // Dr. Carlos avatar
           voice: {
             voice_id: '08284d3fc63a424fbe80cc1864ed2540', // Dario - Natural (Spanish Male, Interactive Avatar Compatible)
             rate: 1.0
@@ -68,7 +68,7 @@ export class HeyGenService {
             },
             body: JSON.stringify({
               quality: 'high',
-              avatar_name: avatarId || 'josh_lite3_20230714',
+              avatar_name: avatarId || 'Dexter_Doctor_Standing2_public',
               voice: {
                 voice_id: '08284d3fc63a424fbe80cc1864ed2540',
                 rate: 1.0
