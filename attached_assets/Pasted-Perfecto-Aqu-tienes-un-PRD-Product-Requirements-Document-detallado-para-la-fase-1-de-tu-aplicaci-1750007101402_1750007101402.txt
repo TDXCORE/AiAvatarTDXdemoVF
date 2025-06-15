@@ -1,0 +1,129 @@
+Perfecto. Aquí tienes un PRD (Product Requirements Document) detallado para la fase 1 de tu aplicación de AI Streaming con voz, con enfoque en detección de turnos, procesamiento en tiempo real, y arquitectura modular utilizando Groq, LangChain, React (TS) y Java en el backend.
+
+⸻
+
+🧾 PRODUCT REQUIREMENTS DOCUMENT (PRD)
+
+🧠 Nombre del Proyecto: AI Streaming Voice Agent v1
+
+⸻
+
+🎯 Objetivo del Producto
+
+Desarrollar una aplicación de conversación por voz en tiempo real tipo WhatsApp que:
+	1.	Detecte cuando el usuario habla (VAD).
+	2.	Use Groq con Whisper para transcripción en tiempo real (STT con temperatura 0 y en formato WAV).
+	3.	Envíe el texto transcrito a un agente LLM orquestado por LangChain.
+	4.	Presente la respuesta del agente en una interfaz de chat visual tipo WhatsApp.
+	5.	Soporte interrupciones y detección de turnos en conversaciones.
+
+⸻
+
+🧩 Funcionalidades Clave
+
+1. Interfaz de Usuario (Frontend React + TS)
+	•	✅ Ventana de chat en tiempo real (ChatWindow)
+	•	✅ Botón de audio (tipo llamada de voz en WhatsApp)
+	•	✅ Indicador visual de grabación activa y transcripción
+	•	✅ Visualización de turnos (quién está hablando)
+	•	✅ Renderizado de mensajes en forma de texto
+
+2. Procesamiento de Voz (Client-Side o Node Microservice)
+	•	🎙️ VAD (Voice Activity Detection):
+	•	Librerías: @picovoice/web-voice-activity-detection, webrtcvad, pv-vad, deepgram-vad
+	•	Funciones:
+	•	Detectar inicio/fin de habla
+	•	Enviar sólo fragmentos con voz al backend
+	•	Gestionar interrupciones (pausar respuesta si el usuario habla)
+	•	🎧 STT (Speech-To-Text con Groq Whisper):
+	•	Enviar fragmentos en formato WAV (no WebM ni Opus)
+	•	Configurar temperatura a 0 para consistencia
+	•	Integrar con Groq API (modelo Whisper en streaming o batch)
+	•	Endpoint:
+
+POST /transcribe
+Body: {
+  file: audio/wav,
+  language: "es",
+  temperature: 0
+}
+
+
+
+3. Backend (Java + LangChain Integration)
+	•	🔁 Recepción del texto transcrito
+	•	🧠 Procesamiento LLM vía LangChain:
+	•	Crear lógica de agente con herramientas y memoria
+	•	Integrar ConversationalRetrievalChain o AgentExecutor
+	•	Motor: LLaMA v3 70B via Groq
+	•	Endpoint:
+
+POST /agent
+Body: {
+  input_text: string,
+  session_id: string
+}
+Response: {
+  reply_text: string,
+  context_state: object
+}
+
+
+	•	📦 API REST Java:
+	•	/transcribe para STT
+	•	/agent para LLM
+	•	/interrupt para manejo de interrupciones
+
+⸻
+
+⚙️ Arquitectura Técnica
+
+🔷 Frontend (React + TypeScript)
+
+[ChatWindow] ⬅️ state ⬅️ [VAD Hook] ⬅️ 🎤
+           ⬇️ HTTP                      ⬇️
+     [Backend Java API] 🔁 ↔️ LangChain Agent (Groq)
+
+🔶 Backend (Java)
+	•	Spring Boot API REST
+	•	Conexión a LangChain via SDK Python (usando un microservicio si es necesario)
+	•	Módulo de control de sesión/turno
+
+⸻
+
+📚 Librerías y SDKs Recomendados
+
+Funcionalidad	Librerías
+VAD (TS)	@picovoice/web-voice-activity-detection, webrtcvad
+Grabación audio WAV	recorder-js, mic-recorder-to-mp3 con WAV config
+STT (Groq Whisper)	axios o fetch con FormData para WAV
+LangChain	langchain, groq-sdk, openai-toolkit
+Backend Java	Spring Boot, RestTemplate, OpenFeign, WebSocket (para streaming si aplica)
+
+
+⸻
+
+⏱️ MVP - Prioridades Fase 1
+
+Prioridad	Requisito
+Alta	VAD con interrupciones
+Alta	Transcripción por Groq (formato WAV, temperatura 0)
+Alta	Agente LLM funcional con lógica básica en LangChain
+Alta	UI de chat + botón de audio
+Media	Indicadores visuales de habla
+Media	Persistencia de conversaciones
+Baja	WebSocket para streaming (fase 2)
+
+
+⸻
+
+✅ Criterios de Aceptación
+	1.	El sistema detecta cuando el usuario comienza a hablar.
+	2.	Se envía automáticamente el audio transcrito vía WAV a Groq.
+	3.	El texto generado se envía a LangChain vía backend Java.
+	4.	El agente responde correctamente y se muestra en el chat.
+	5.	Si el usuario interrumpe, el agente se detiene y se reinicia el flujo.
+
+⸻
+
+¿Deseas que ahora te prepare el prompt exacto para el agente LLM en LangChain o para la implementación del VAD en TypeScript?
