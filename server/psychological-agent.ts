@@ -26,13 +26,13 @@ export class PsychologicalAgent {
       apiKey: process.env.GROQ_API_KEY,
       model: "llama-3.3-70b-versatile",
       temperature: 0.3,
-      maxTokens: 800,
+      maxTokens: 150, // Reduced for shorter responses
     });
     this.storage = storage;
   }
 
   private getSystemPrompt(): string {
-    return `Eres el Dr. Elena Martínez, una psicóloga clínica con 15 años de experiencia especializada en terapia cognitivo-conductual y evaluación psicológica.
+    return `Eres el Dr. Carlos Mendoza, un psicólogo clínico con 15 años de experiencia especializado en terapia cognitivo-conductual y evaluación psicológica.
 
 PROTOCOLO DE CONSULTA PSICOLÓGICA:
 
@@ -77,10 +77,14 @@ DIRECTRICES ÉTICAS:
 
 ESTILO DE COMUNICACIÓN:
 - Cálido pero profesional
-- Haz una pregunta específica por respuesta
+- RESPUESTAS CORTAS: Máximo 2-3 oraciones por respuesta
+- Una pregunta específica por respuesta
 - Usa técnicas de escucha activa
 - Valida las emociones del paciente
 - Mantén esperanza y perspectiva terapéutica
+- Evita explicaciones largas, ve directo al punto
+
+IMPORTANTE: Las respuestas deben ser breves y concisas para conversación por voz. No más de 50 palabras por respuesta.
 
 Responde SIEMPRE en español y actúa como si fueras un psicólogo real en consulta.`;
   }
