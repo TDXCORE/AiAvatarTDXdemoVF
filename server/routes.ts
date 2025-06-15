@@ -153,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           messages: [
             {
               role: 'system',
-              content: 'You are a helpful AI voice assistant. Provide concise, conversational responses that work well for voice interaction. Keep responses under 100 words when possible.'
+              content: 'Eres un asistente de IA por voz útil. Responde SIEMPRE en español. Proporciona respuestas concisas y conversacionales que funcionen bien para la interacción por voz. Mantén las respuestas bajo 100 palabras cuando sea posible.'
             },
             ...conversationHistory
           ],
