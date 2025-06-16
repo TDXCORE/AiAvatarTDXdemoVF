@@ -207,7 +207,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     }
   };
 
-  const ready = Boolean(avatarState.sessionId);
+  const ready = Boolean(avatarState.sessionId) && avatarState.phase !== 'error';
 
   const renderAvatarDisplay = () => {
     // Always show the animated avatar display with streaming
@@ -220,7 +220,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
   };
 
   return (
-    <Dialog open={isOpen && ready} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[80vh] p-0">
         <DialogHeader className="p-6 pb-0 flex flex-row items-center justify-between">
           <div>
@@ -238,7 +238,24 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           {/* Avatar Display */}
           <div className="flex-1 p-6">
             <div className="w-full h-full bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-              {renderAvatarDisplay()}
+              {avatarState.phase === 'error' ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-4xl mb-4">⚠️</div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                      Error de Conexión
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      {avatarState.error || 'No se pudo conectar con el servicio de avatar'}
+                    </p>
+                    <Button onClick={initializeAvatarSession} variant="outline">
+                      Reintentar Conexión
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                renderAvatarDisplay()
+              )}
             </div>
           </div>
 
@@ -246,11 +263,11 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           <div className="p-6 pt-0">
             <div className="flex items-center justify-center space-x-4">
               <Button
-                variant={avatarState.phase === 'ready' ? "default" : "secondary"}
+                variant={avatarState.sessionId ? "default" : "secondary"}
                 onClick={handleStartCall}
-                disabled={avatarState.phase !== 'ready'}
+                disabled={!avatarState.sessionId || avatarState.phase === 'error'}
               >
-                Iniciar Consulta
+                {avatarState.sessionId ? 'Iniciar Consulta' : 'Conectando...'}
               </Button>
               
               <Button
@@ -287,8 +304,9 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
               {avatarState.phase === 'ready' && "Listo para conversar"}
               {avatarState.phase === 'listening' && "Escuchando..."}
               {avatarState.phase === 'speaking' && "Dr. Carlos está respondiendo..."}
-              {avatarState.phase === 'error' && `Error: ${avatarState.error}`}
+              {avatarState.phase === 'error' && "Error de conexión - Usando modo de respaldo"}
               {isProcessing && "Procesando mensaje..."}
+              {avatarState.sessionId && avatarState.phase !== 'error' && avatarState.phase !== 'initializing' && !isProcessing && "Sistema listo"}
             </div>
           </div>
         </div>
