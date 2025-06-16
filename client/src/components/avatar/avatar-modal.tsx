@@ -13,9 +13,10 @@ interface AvatarModalProps {
   isOpen: boolean;
   onClose: () => void;
   sessionId: string;
+  onMessageReceived?: (userMessage: string, aiResponse: string) => void;
 }
 
-export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
+export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: AvatarModalProps) {
   const [avatarState, setAvatarState] = useState<SimpleAvatarState>({
     phase: 'initializing',
     isConnected: false,
@@ -129,6 +130,9 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       if (chatResult.replyText) {
         console.log('AI Response:', chatResult.replyText);
         
+        // Pass messages to parent chat interface
+        onMessageReceived?.(transcriptionResult.transcription, chatResult.replyText);
+        
         // Send to avatar for speech
         await avatarClientRef.current?.speak(chatResult.replyText);
       } else {
@@ -207,8 +211,8 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       );
     }
     
-    // Only show the avatar preview if we have a valid session and connection
-    if (avatarState.sessionId && (avatarState.phase === 'ready' || avatarState.isConnected)) {
+    // Show the avatar preview if we have a session and preview URL
+    if (avatarState.sessionId && avatarState.previewUrl) {
       return (
         <AnimatedAvatarDisplay 
           avatarState={avatarState}
