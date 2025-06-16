@@ -105,7 +105,7 @@ export class SimpleAvatarClient {
     console.log(`✅ WebRTC establecido: ${result.data.webrtcEstablished}`);
     console.log(`✅ Sesión validada: ${result.data.isValidated}`);
 
-    this.onStateChange?({
+    this.onStateChange?.({
       phase: 'ready',
       sessionId: this.sessionId,
       previewUrl: result.data.previewUrl,
