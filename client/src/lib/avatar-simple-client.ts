@@ -249,6 +249,13 @@ export class SimpleAvatarClient {
         isHeyGen: true,
         isReal: true
       });
+
+      // Enviar saludo automático después de 1 segundo
+      setTimeout(() => {
+        this.sendGreeting().catch(error => {
+          console.warn('Falló el saludo automático:', error);
+        });
+      }, 1000);
     } catch (error) {
       console.error('❌ FALLÓ CREACIÓN DE SESIÓN HEYGEN:', error);
       this.onStateChange?.({

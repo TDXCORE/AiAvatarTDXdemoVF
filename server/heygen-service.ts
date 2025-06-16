@@ -136,7 +136,7 @@ export class HeyGenService {
 
   async sendTextToSpeech(text: string, sessionId: string): Promise<void> {
     try {
-
+      console.log(`📢 Enviando TTS a sesión ${sessionId}: "${text}"`);
 
       const response = await fetch(`${this.streamingUrl}.task`, {
         method: 'POST',
@@ -147,14 +147,18 @@ export class HeyGenService {
         body: JSON.stringify({
           session_id: sessionId,
           text: text,
-          task_type: 'repeat' // Cambio a REPEAT mode
+          task_type: 'talk' // Usar 'talk' en lugar de 'repeat'
         }),
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`HeyGen TTS error: ${response.status} - ${error}`);
+        const errorText = await response.text();
+        console.error(`❌ HeyGen TTS falló: ${response.status} - ${errorText}`);
+        throw new Error(`HeyGen TTS error: ${response.status} - ${errorText}`);
       }
+
+      const result = await response.json();
+      console.log('✅ TTS enviado exitosamente:', result);
     } catch (error) {
       console.error('Error sending TTS to HeyGen:', error);
       throw new Error('Failed to send text to avatar');

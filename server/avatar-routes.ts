@@ -65,16 +65,8 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
       const heygenData = await heygenService.createStreamingSession(avatarId);
       console.log('✅ SESIÓN HEYGEN REAL CREADA:', heygenData.sessionId);
       
-      // INICIAR SESIÓN AUTOMÁTICAMENTE para que esté lista para TTS
-      try {
-        await heygenService.startSession(heygenData.sessionId);
-        console.log('🚀 SESIÓN HEYGEN INICIADA Y LISTA PARA TTS:', heygenData.sessionId);
-      } catch (startError) {
-        console.error('❌ ERROR AL INICIAR SESIÓN:', startError);
-        // Limpiar la sesión fallida
-        await heygenService.closeSession(heygenData.sessionId);
-        throw new Error('Failed to start HeyGen session - session cleaned up');
-      }
+      // HeyGen sessions are ready to use immediately after creation
+      // No need to call startSession - that's for WebRTC which we handle client-side
       
       res.json({
         success: true,
@@ -84,7 +76,7 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
           streamUrl: heygenData.streamUrl,
           isHeyGen: true,
           isReal: true,
-          isStarted: true // Indicar que la sesión ya está iniciada
+          isReady: true // Sesión lista para usar sin WebRTC server-side
         }
       });
     } catch (error) {
