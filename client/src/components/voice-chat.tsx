@@ -468,8 +468,6 @@ export function VoiceChat() {
         onMessageReceived={handleAvatarMessage}
         videoRef={videoRef}
       />
-
-<video ref={videoRef} style={{ display: 'none' }} />
     </div>
   );
 }
