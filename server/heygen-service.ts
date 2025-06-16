@@ -28,6 +28,8 @@ export class HeyGenService {
 
   async createHeygenToken(): Promise<string> {
     try {
+      console.log('🔑 Requesting token from HeyGen API...');
+      
       const response = await fetch(`${this.streamingUrl}.create_token`, {
         method: 'POST',
         headers: {
@@ -37,13 +39,23 @@ export class HeyGenService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create token: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`❌ Token creation failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to create token: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json() as { token: string };
-      return data.token;
+      const data = await response.json() as { data?: { token: string }, token?: string };
+      const token = data.data?.token || data.token;
+      
+      if (!token) {
+        console.error('❌ No token in response:', data);
+        throw new Error('Token not found in response');
+      }
+
+      console.log('✅ Token created successfully');
+      return token;
     } catch (error) {
-      console.error('Error creating HeyGen token:', error);
+      console.error('❌ Error creating HeyGen token:', error);
       throw error;
     }
   }

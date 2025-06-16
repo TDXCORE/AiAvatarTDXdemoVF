@@ -8,14 +8,20 @@ export function addAvatarRoutes(app: Express) {
   // Create avatar token for SDK initialization
   app.post("/api/avatar/token", async (req, res) => {
     try {
+      console.log('🔑 Creating HeyGen token for SDK...');
       const token = await heygenService.createHeygenToken();
+      
+      if (!token) {
+        throw new Error('Token creation returned empty result');
+      }
 
+      console.log('✅ HeyGen token created successfully');
       res.json({
         success: true,
         token: token
       });
     } catch (error) {
-      console.error('Avatar token creation error:', error);
+      console.error('❌ Avatar token creation error:', error);
       res.status(500).json({ 
         success: false,
         message: "Failed to create avatar token",

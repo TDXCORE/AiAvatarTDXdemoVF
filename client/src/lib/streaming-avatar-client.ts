@@ -34,8 +34,7 @@ export class StreamingAvatarClient {
 
       // 2. Create StreamingAvatar instance
       this.streamingAvatar = new StreamingAvatar({ 
-        token: token,
-        
+        token: token
       });
 
       // 3. Setup event listeners
