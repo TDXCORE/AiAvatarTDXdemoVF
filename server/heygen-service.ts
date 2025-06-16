@@ -44,7 +44,7 @@ export class HeyGenService {
             voice_id: '08284d3fc63a424fbe80cc1864ed2540', // Dario - Natural (Spanish Male, Interactive Avatar Compatible)
             rate: 1.0
           },
-          task_type: "REPEAT" // Usar REPEAT mode para TTS + LipSync controlado
+          task_type: "repeat" // Usar repeat mode para TTS + LipSync controlado
         }),
       });
 
@@ -73,7 +73,7 @@ export class HeyGenService {
                 voice_id: '08284d3fc63a424fbe80cc1864ed2540',
                 rate: 1.0
               },
-              task_type: "REPEAT" // Usar REPEAT mode para TTS + LipSync controlado
+              task_type: "repeat" // Usar repeat mode para TTS + LipSync controlado
             }),
           });
 
@@ -126,7 +126,7 @@ export class HeyGenService {
         body: JSON.stringify({
           session_id: sessionId,
           text: text,
-          task_type: 'REPEAT' // Cambio a REPEAT mode
+          task_type: 'repeat' // Cambio a REPEAT mode
         }),
       });
 

@@ -61,10 +61,10 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
         setAvatarState(prev => ({ ...prev, ...newState }));
       });
 
-      // Create session with REPEAT mode y activar preview inmediatamente
+      // Create session with repeat mode y activar preview inmediatamente
       await avatarClientRef.current.initialize();
       
-      // Con REPEAT mode, el preview se activa inmediatamente tras obtener sessionId
+      // Con repeat mode, el preview se activa inmediatamente tras obtener sessionId
       // No necesita setReady() adicional - ya está listo para recibir texto del agente
 
     } catch (error) {
@@ -158,10 +158,10 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
-      // Con REPEAT mode, sesión ya está lista con preview activo
+      // Con repeat mode, sesión ya está lista con preview activo
       setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
       
-      // Enviar saludo inicial usando REPEAT mode
+      // Enviar saludo inicial usando repeat mode
       await avatarClientRef.current.speak("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
     } catch (error) {
       console.error('Failed to start call:', error);
