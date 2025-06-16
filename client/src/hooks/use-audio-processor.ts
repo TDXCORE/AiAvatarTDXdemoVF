@@ -16,22 +16,54 @@ export function useAudioProcessor(options: UseAudioProcessorOptions) {
   // Transcription mutation
   const transcribeMutation = useMutation({
     mutationFn: async (audioBlob: Blob): Promise<TranscriptionResult> => {
-      const formData = new FormData();
-      const wavBlob = await AudioUtils.convertToWav(audioBlob);
-      formData.append('audio', wavBlob, 'recording.wav');
-      formData.append('language', language);
-
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Transcription failed');
+      // Validate audio blob before processing
+      if (!audioBlob || audioBlob.size === 0) {
+        throw new Error('No audio data to transcribe');
       }
 
-      return response.json();
+      if (audioBlob.size < 1000) {
+        throw new Error('Audio recording too short');
+      }
+
+      console.log('🎤 Processing audio for transcription:', {
+        size: audioBlob.size,
+        type: audioBlob.type
+      });
+
+      try {
+        const wavBlob = await AudioUtils.convertToWav(audioBlob);
+        
+        // Final validation of converted audio
+        if (!wavBlob || wavBlob.size === 0) {
+          throw new Error('Audio conversion resulted in empty file');
+        }
+
+        const formData = new FormData();
+        formData.append('audio', wavBlob, 'recording.wav');
+        formData.append('language', language);
+
+        console.log('📤 Sending audio to transcription API:', {
+          wavSize: wavBlob.size,
+          language
+        });
+
+        const response = await fetch('/api/transcribe', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Transcription failed');
+        }
+
+        const result = await response.json();
+        console.log('✅ Transcription successful:', result);
+        return result;
+      } catch (error) {
+        console.error('❌ Transcription processing failed:', error);
+        throw error;
+      }
     },
   });
 

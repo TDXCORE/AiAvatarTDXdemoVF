@@ -70,7 +70,20 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
         return null;
       }
 
+      // Validate recording quality
+      if (audioBlob.size < 1000) {
+        onError?.('Recording too short. Please speak for at least 1 second.');
+        return null;
+      }
+
       const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      
+      console.log('🎤 Recording completed:', {
+        size: audioBlob.size,
+        duration: duration,
+        type: audioBlob.type
+      });
+
       const result: AudioRecordingResult = {
         audioBlob,
         duration,
@@ -82,7 +95,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
 
       return result;
     } catch (error) {
-      console.error('Failed to stop recording:', error);
+      console.error('❌ Failed to stop recording:', error);
       onError?.('Failed to stop recording. Please try again.');
       return null;
     }

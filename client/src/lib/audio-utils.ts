@@ -25,8 +25,26 @@ export class AudioUtils {
       });
 
       this.audioChunks = [];
+      
+      // Try different MIME types in order of preference
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+        ''
+      ];
+
+      let selectedMimeType = '';
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType;
+          break;
+        }
+      }
+
       this.mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus',
+        mimeType: selectedMimeType,
       });
 
       this.mediaRecorder.ondataavailable = (event) => {
@@ -35,7 +53,8 @@ export class AudioUtils {
         }
       };
 
-      this.mediaRecorder.start(100); // Collect data every 100ms
+      // Use longer chunks for better stability
+      this.mediaRecorder.start(1000); // Collect data every 1000ms
       return this.mediaRecorder;
     } catch (error) {
       console.error('Failed to start recording:', error);
@@ -67,18 +86,48 @@ export class AudioUtils {
   }
 
   static async convertToWav(audioBlob: Blob): Promise<Blob> {
+    // Validate input blob
+    if (!audioBlob || audioBlob.size === 0) {
+      throw new Error('Empty or invalid audio blob');
+    }
+
+    console.log('🎵 Converting audio blob:', {
+      size: audioBlob.size,
+      type: audioBlob.type
+    });
+
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const arrayBuffer = await audioBlob.arrayBuffer();
+      
+      if (arrayBuffer.byteLength === 0) {
+        throw new Error('Empty audio data');
+      }
+
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
       
       // Convert to WAV format
       const wavBuffer = this.audioBufferToWav(audioBuffer);
-      return new Blob([wavBuffer], { type: 'audio/wav' });
+      const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+      
+      console.log('✅ WAV conversion successful:', {
+        originalSize: audioBlob.size,
+        wavSize: wavBlob.size
+      });
+      
+      await audioContext.close();
+      return wavBlob;
     } catch (error) {
-      console.error('WAV conversion failed:', error);
-      // Return original blob if conversion fails
-      return audioBlob;
+      console.error('❌ WAV conversion failed:', error);
+      
+      // If original blob is substantial size, try to use it directly
+      if (audioBlob.size > 1000) {
+        console.warn('🔄 Using original blob as fallback');
+        return audioBlob;
+      }
+      
+      // If blob is too small, throw error
+      throw new Error(`Audio conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
