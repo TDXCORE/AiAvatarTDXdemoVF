@@ -4,7 +4,7 @@ import { MessageBubble } from './message-bubble';
 import { VoiceControls } from './voice-controls';
 import { VoiceRecorder } from './voice-recorder';
 import { CallButton } from './avatar/call-button';
-import { AvatarModal } from './avatar/avatar-modal';
+import { NewAvatarModal } from './avatar/new-avatar-modal';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -461,12 +461,11 @@ export function VoiceChat() {
       </Dialog>
 
       {/* Avatar Modal */}
-      <AvatarModal
+      <NewAvatarModal
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
         sessionId={conversation?.sessionId || ''}
         onMessageReceived={handleAvatarMessage}
-        videoRef={videoRef}
       />
     </div>
   );
