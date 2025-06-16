@@ -13,7 +13,9 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
+  const maxRecordingTime = 30000; // 30 segundos máximo
 
   const { onRecordingStart, onRecordingStop, onError } = options;
 
@@ -44,6 +46,14 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
         setRecordingDuration(elapsed);
       }, 1000);
 
+      // Timeout de seguridad para evitar grabaciones muy largas
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          console.warn('⚠️ Recording timeout reached, stopping...');
+          stopRecording();
+        }
+      }, maxRecordingTime);
+
       onRecordingStart?.();
       return true;
     } catch (error) {
@@ -62,6 +72,11 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
         durationIntervalRef.current = null;
+      }
+
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
       }
 
       const audioBlob = await AudioUtils.stopRecording();
@@ -109,6 +124,11 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;
+    }
+
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
 
     if (mediaRecorderRef.current?.stream) {

@@ -302,8 +302,17 @@ export function NewAvatarModal({
   };
 
   const cleanup = async () => {
+    // Parar todas las actividades de audio
     vad.stopListening();
     recorder.cancelRecording();
+
+    // Limpiar recursos de audio específicamente
+    try {
+      const streams = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streams.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      // Ignorar errores de limpieza de streams
+    }
 
     if (avatarClientRef.current) {
       try {

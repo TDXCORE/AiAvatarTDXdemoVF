@@ -12,7 +12,7 @@ import { addAvatarRoutes } from "./avatar-routes.js";
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for audio files
+    fileSize: 50 * 1024 * 1024, // 50MB limit for audio files
   },
   fileFilter: (req, file, cb) => {
     // Accept WAV and WebM files

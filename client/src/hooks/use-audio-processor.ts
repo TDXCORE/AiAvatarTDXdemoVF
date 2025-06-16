@@ -62,6 +62,16 @@ export function useAudioProcessor(options: UseAudioProcessorOptions) {
         return result;
       } catch (error) {
         console.error('❌ Transcription processing failed:', error);
+        
+        // Manejo específico para archivos grandes
+        if (error instanceof Error) {
+          if (error.message.includes('File too large')) {
+            throw new Error('La grabación es muy larga. Intenta con un mensaje más corto.');
+          } else if (error.message.includes('File too small')) {
+            throw new Error('La grabación es muy corta. Mantén presionado el botón más tiempo.');
+          }
+        }
+        
         throw error;
       }
     },
