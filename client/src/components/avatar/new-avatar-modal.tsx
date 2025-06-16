@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
@@ -33,7 +33,7 @@ export function NewAvatarModal({
   });
 
   const [isMuted, setIsMuted] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(isCallActive);
+  const [isCallActive, setIsCallActive] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('09:53');
@@ -118,10 +118,12 @@ export function NewAvatarModal({
 
   useEffect(() => {
     if (isOpen) {
-      // Auto-start call when modal opens
-      setTimeout(() => {
+      // Initialize avatar when modal opens
+      const initTimer = setTimeout(() => {
         initializeAvatarSession();
       }, 500);
+      
+      return () => clearTimeout(initTimer);
     } else {
       cleanup();
     }
@@ -261,18 +263,20 @@ export function NewAvatarModal({
           }
         });
         stream.getTracks().forEach(track => track.stop());
+        console.log('🎤 Microphone permissions granted for call');
 
-        // Start VAD
+        // Start VAD after a delay
         setTimeout(() => {
-          if (!isMuted) {
+          if (!isMuted && isCallActive) {
             vad.startListening();
+            console.log('🎤 VAD started listening');
           }
-        }, 500);
+        }, 1000);
       } catch (error) {
         console.error('🎤 Microphone not available:', error);
         toast({
           title: 'Micrófono no disponible',
-          description: 'No se puede detectar voz automáticamente.',
+          description: 'Puedes usar el chat de texto para comunicarte.',
           variant: 'destructive',
         });
       }
@@ -316,6 +320,9 @@ export function NewAvatarModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-full max-h-full h-screen w-screen p-0 m-0 flex flex-col bg-black">
+        <DialogTitle className="sr-only">Chat with Judy - L&D Compliance Training</DialogTitle>
+        <DialogDescription className="sr-only">Interactive avatar session for learning and development compliance training with voice and text communication</DialogDescription>
+        
         {/* Header */}
         <div className="bg-black text-white p-4 flex items-center justify-between relative z-10">
           <div className="flex items-center space-x-3">
