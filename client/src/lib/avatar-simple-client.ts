@@ -36,7 +36,7 @@ export class SimpleAvatarClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          avatarId: 'josh_lite3_20230714',
+          avatarId: 'Dexter_Doctor_Standing2_public',
           taskType: 'REPEAT' // CLAVE: no streaming WebRTC
         })
       });

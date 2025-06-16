@@ -90,7 +90,7 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       formData.append('audio', wavBlob, 'recording.wav');
       formData.append('language', 'es');
 
-      const transcriptionResponse = await fetch('/api/voice/transcribe', {
+      const transcriptionResponse = await fetch('/api/transcribe', {
         method: 'POST',
         body: formData,
       });
@@ -109,12 +109,14 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
       console.log('User said:', transcriptionResult.transcription);
 
       // Get AI response
-      const chatResponse = await fetch('/api/chat', {
+      const chatResponse = await fetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          inputText: transcriptionResult.transcription,
           sessionId: sessionId,
-          message: transcriptionResult.transcription,
+          isAvatarCall: true,
+          avatarSessionId: avatarClientRef.current.getSessionId()
         }),
       });
 
@@ -124,11 +126,13 @@ export function AvatarModal({ isOpen, onClose, sessionId }: AvatarModalProps) {
 
       const chatResult = await chatResponse.json();
       
-      if (chatResult.success && chatResult.data?.response) {
-        console.log('AI Response:', chatResult.data.response);
+      if (chatResult.replyText) {
+        console.log('AI Response:', chatResult.replyText);
         
         // Send to avatar for speech
-        await avatarClientRef.current?.speak(chatResult.data.response);
+        await avatarClientRef.current?.speak(chatResult.replyText);
+      } else {
+        throw new Error('No response from AI agent');
       }
 
     } catch (error) {

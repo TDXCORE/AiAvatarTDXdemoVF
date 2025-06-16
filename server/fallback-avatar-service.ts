@@ -112,11 +112,11 @@ export class FallbackAvatarService {
   cleanupOldSessions(maxAgeMinutes: number = 30): void {
     const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000);
     
-    for (const [sessionId, session] of this.activeSessions.entries()) {
+    Array.from(this.activeSessions.entries()).forEach(([sessionId, session]) => {
       if (session.created < cutoff) {
         this.activeSessions.delete(sessionId);
         console.log(`Cleaned up old fallback session: ${sessionId}`);
       }
-    }
+    });
   }
 }
