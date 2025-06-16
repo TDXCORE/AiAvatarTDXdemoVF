@@ -1,0 +1,126 @@
+### Cambios críticos para que tu streaming vuelva a funcionar (sin WebRTC manual)
+
+| 🔧 Bloque              | Qué está mal hoy                                                                        | Cómo corregirlo                                                                                                                                                                               | Fuentes                                      |
+| ---------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **Handshake**          | Llamas `streaming.start` con un SDP hard-codeado → *“Peer connection state is invalid”* | **Elimina todo el paso `startSession()`** y **NO envíes SDP**. El handshake ahora lo hace LiveKit bajo el capó a través del SDK (`@heygen/streaming-avatar`). El campo `sdp` quedó en `null`. | ([docs.heygen.com][1], [docs.heygen.com][2]) |
+| **Token**              | Reutilizas la API-Key en el front o pasas el `session_id` sin token                     | 1) Tu **backend** llama `POST /v1/streaming.create_token` <br>2) Devuelve `{ token }` al cliente <br>3) El front hace `new StreamingAvatar({ token })`                                        | ([docs.heygen.com][3])                       |
+| **Creación de sesión** | `streaming.new` OK, luego `streaming.start` ❌                                           | Front **o** back: <br>`await avatar.createStartAvatar({ avatarName, quality:'high', voice:{…}, taskType:'repeat' });`                                                                         | ([docs.heygen.com][2])                       |
+| **Envío de texto**     | REST a `/streaming.task` + WS manual                                                    | `await avatar.speak({ text, taskType:TaskType.REPEAT, taskMode:'SYNC' });` (o `repeat()` para concatenar)                                                                                     | ([docs.heygen.com][2])                       |
+| **Eventos**            | Sin handlers estables → reconexiones muertas                                            | Escucha: <br>`STREAM_READY` → `video.srcObject = ev.detail` <br>`STREAM_DISCONNECTED` → retry / fallback audio <br>`UTTERANCE_END` → habilita botón “Hablar”                                  | ([docs.heygen.com][2])                       |
+| **Clean-up**           | Tracks quedan vivos, créditos corriendo                                                 | `await avatar.stopAvatar(); video.srcObject=null;` en `beforeunload` y botón “FIN”                                                                                                            |                                              |
+
+---
+
+## Refactor paso a paso
+
+### 1. Backend (Token endpoint)
+
+```ts
+// /pages/api/avatar/token.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+export default async function handler(req:NextApiRequest,res:NextApiResponse){
+  const r = await fetch('https://api.heygen.com/v1/streaming.create_token',{
+    method:'POST',
+    headers:{
+      'x-api-key': process.env.HEYGEN_KEY!,
+      'content-type':'application/json'
+    }
+  }).then(r=>r.json());
+
+  if(r.error) return res.status(500).json(r);
+  res.status(200).json({ token: r.data.token });
+}
+```
+
+### 2. Frontend (Vite / React)
+
+```ts
+import { StreamingAvatar, AvatarQuality, TaskType } from '@heygen/streaming-avatar';
+
+async function init() {
+  const { token } = await (await fetch('/api/avatar/token')).json();
+  const avatar = new StreamingAvatar({ token });
+
+  avatar.addEventListener('STREAM_READY', ev => {
+    videoRef.current!.srcObject = ev.detail as MediaStream;
+  });
+  avatar.addEventListener('STREAM_DISCONNECTED', () => reconnect());
+
+  await avatar.createStartAvatar({
+    avatarName: 'Dexter_Doctor_Standing2_public',
+    quality: AvatarQuality.High,
+    taskType: 'repeat',        // ⬅ ya no necesitas tu `startSession`
+    voice: { voiceId:'08284d3fc63a424fbe80cc1864ed2540', rate:1.0 }
+  });
+
+  speakBtn.onclick = () =>
+    avatar.speak({ text: input.value, taskType:TaskType.REPEAT, taskMode:'SYNC' });
+}
+```
+
+### 3. Borrón de código legado
+
+* `establishWebRTCConnection()` **DELETE**
+* `startSession()` en `heygen-service.ts` **DELETE**
+* El bucle de retry sobre SDP **DELETE**
+* Cualquier `RTCPeerConnection`, `setRemoteDescription`, etc. **DELETE**
+
+### 4. Control de concurrencia
+
+HeyGen limita sesiones paralelas (pago ≈ 1 cada 30 seg).
+Añade en tu back:
+
+```ts
+let active = 0;
+const MAX = 1; // o el plan que pagues
+if(active >= MAX) return res.status(429).json({error:'Too many sessions'});
+active++;
+try { … } finally { active--; }
+```
+
+### 5. Manejo de interrupciones / fallbacks
+
+Si el usuario cambia de tema mientras el avatar habla:
+
+```ts
+await avatar.interruptTask();          // corta el speech
+await avatar.speak({ text: nuevoTexto, taskType:'repeat' });
+```
+
+> **Tip:** si el streaming se cae, puedes seguir enviando tareas vía REST `POST /v1/streaming.task`; el avatar retoma cuando LiveKit reconecta.
+
+---
+
+## Diagrama actualizado
+
+```
+Frontend             Backend                 HeyGen
+  |                     |                      |
+  |-- GET /token ------>|                      |
+  |<-- {token} ---------|                      |
+  |-- WS+createStart -->|-- create_token --->  |
+  |                     |<-- {token} ---------|
+  | (LiveKit handshake AUTO)                  |
+  |<-- STREAM_READY --------------------------|
+  | user: "Habla"                             |
+  |-- avatar.speak(text) -------------------->|
+  |<-- video/voz frames ----------------------|
+  | user: "Fin"                               |
+  |-- stopAvatar() -------------------------->|
+```
+
+---
+
+## Lista de verificación rápida
+
+1. ✅ SDK `@heygen/streaming-avatar` ≥ latest
+2. ✅ Token por sesión vía `streaming.create_token`
+3. ✅ `createStartAvatar()` en vez de `streaming.start`
+4. ✅ Handlers de eventos LiveKit (`STREAM_READY`, `DISCONNECTED`)
+5. ✅ Limpieza con `stopAvatar()` y cierre de pestaña
+
+Con estos cambios eliminas el SDP obsoleto, te alíneas al flujo oficial LiveKit y desbloqueas futuras features (interrupt, emotion, knowledgeId, etc.). ¡Dale, que así el avatar vuelve a hablar sin trabas!
+
+[1]: https://docs.heygen.com/discuss/67e6890ca0406c002b6be376?utm_source=chatgpt.com "Unable to start streaming session sometimes - HeyGen API ..."
+[2]: https://docs.heygen.com/docs/streaming-avatar-sdk-reference "Streaming Avatar SDK API Reference"
+[3]: https://docs.heygen.com/reference/create-session-token "Create Session Token"
