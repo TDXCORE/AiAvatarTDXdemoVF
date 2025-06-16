@@ -61,8 +61,13 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
         setAvatarState(prev => ({ ...prev, ...newState }));
       });
 
-      // Create session
+      // Create session and immediately connect to streaming
       await avatarClientRef.current.initialize();
+      
+      // Auto-start streaming after session creation
+      if (avatarClientRef.current.getSessionId()) {
+        await avatarClientRef.current.setReady();
+      }
 
     } catch (error) {
       console.error('Failed to initialize avatar session:', error);
@@ -155,9 +160,11 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
-      // Start the streaming session
-      await avatarClientRef.current.setReady();
-      setAvatarState(prev => ({ ...prev, phase: 'ready', isConnected: true }));
+      // Session should already be ready, just update UI state
+      setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
+      
+      // Send initial greeting
+      await avatarClientRef.current.speak("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
     } catch (error) {
       console.error('Failed to start call:', error);
     }

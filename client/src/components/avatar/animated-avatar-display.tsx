@@ -65,36 +65,62 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
     }
   };
 
-  // If we have a sessionId, show the HeyGen streaming iframe
+  // Always try to show the HeyGen streaming interface if we have any session
   if (avatarState.sessionId) {
-    console.log('HeyGen streaming session:', avatarState.sessionId);
+    console.log('Displaying avatar for session:', avatarState.sessionId);
+    
+    // Check if it's a real HeyGen session or fallback
+    const isHeyGenSession = !avatarState.sessionId.startsWith('fallback_');
     
     return (
       <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
-        {/* HeyGen Streaming Avatar */}
-        <div className="relative w-full h-full">
-          <iframe
-            src={`https://app.heygen.com/embed/v1/${avatarState.sessionId}`}
-            className={`w-full h-full border-0 transition-all duration-300 ${
-              isAnimating 
-                ? 'scale-105 brightness-110' 
-                : 'scale-100 brightness-100'
-            }`}
-            title="Dr. Carlos Mendoza - Avatar en Streaming"
-            allow="camera; microphone; autoplay"
-            onLoad={() => {
-              console.log('HeyGen streaming avatar loaded successfully');
-            }}
-            onError={() => {
-              console.warn('HeyGen streaming failed');
-            }}
-          />
-          
-          {/* Speaking animation overlay */}
-          {isAnimating && (
-            <div className="absolute inset-0 bg-blue-400/10 animate-pulse pointer-events-none"></div>
-          )}
-        </div>
+        {isHeyGenSession ? (
+          /* Real HeyGen Streaming Avatar */
+          <div className="relative w-full h-full">
+            <iframe
+              src={`https://app.heygen.com/embed/v1/${avatarState.sessionId}`}
+              className={`w-full h-full border-0 transition-all duration-300 ${
+                isAnimating 
+                  ? 'scale-105 brightness-110' 
+                  : 'scale-100 brightness-100'
+              }`}
+              title="Dr. Carlos Mendoza - Avatar en Streaming"
+              allow="camera; microphone; autoplay"
+              onLoad={() => {
+                console.log('HeyGen streaming avatar loaded successfully');
+              }}
+              onError={() => {
+                console.warn('HeyGen streaming failed');
+              }}
+            />
+            
+            {/* Speaking animation overlay */}
+            {isAnimating && (
+              <div className="absolute inset-0 bg-blue-400/10 animate-pulse pointer-events-none"></div>
+            )}
+          </div>
+        ) : (
+          /* Fallback static avatar with premium styling */
+          <div className="relative w-full h-full bg-gradient-to-br from-blue-900 via-indigo-800 to-purple-900 flex items-center justify-center">
+            <div className="relative">
+              {/* Professional doctor avatar */}
+              <div className="w-64 h-64 rounded-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center border-4 border-white shadow-2xl">
+                <div className="text-8xl">👨‍⚕️</div>
+              </div>
+              
+              {/* Speaking animation */}
+              {isAnimating && (
+                <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-ping"></div>
+              )}
+            </div>
+            
+            {/* Professional overlay */}
+            <div className="absolute bottom-8 left-8 right-8 bg-white/10 backdrop-blur-md rounded-lg p-4 text-white text-center">
+              <h3 className="text-xl font-bold">Dr. Carlos Mendoza</h3>
+              <p className="text-sm opacity-90">Psicólogo Clínico</p>
+            </div>
+          </div>
+        )}
 
         {/* State-specific overlays */}
         {renderStateOverlay()}

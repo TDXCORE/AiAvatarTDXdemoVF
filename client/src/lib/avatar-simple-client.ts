@@ -37,12 +37,12 @@ export class SimpleAvatarClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           avatarId: 'Dexter_Doctor_Standing2_public',
-          taskType: 'REPEAT' // CLAVE: no streaming WebRTC
+          preferHeyGen: true 
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create avatar session');
+        throw new Error(`Session creation failed: ${response.status}`);
       }
 
       const result = await response.json();
@@ -52,22 +52,53 @@ export class SimpleAvatarClient {
       }
 
       this.sessionId = result.data.sessionId;
+      this.isHeyGenSession = !this.sessionId.startsWith('fallback_');
 
       this.onStateChange?.({
-        phase: 'ready',
+        phase: 'preview',
         sessionId: this.sessionId,
-        previewUrl: result.data.streamUrl || result.data.previewUrl,
-        isConnected: true
+        previewUrl: result.data.previewUrl,
+        isConnected: false
       });
 
-      console.log('Avatar session ready with REPEAT mode:', this.sessionId);
+      console.log(`Avatar session created: ${this.sessionId} (HeyGen: ${this.isHeyGenSession})`);
+
+      // If we got a real HeyGen session, immediately start it
+      if (this.isHeyGenSession) {
+        await this.startHeyGenSession();
+      }
+
     } catch (error) {
-      console.error('Avatar initialization failed:', error);
-      this.onStateChange?.({
-        phase: 'error',
-        error: error instanceof Error ? error.message : 'Initialization failed'
+      console.error('Session initialization failed:', error);
+      this.onStateChange?.({ 
+        phase: 'error', 
+        error: error instanceof Error ? error.message : 'Failed to initialize session' 
       });
       throw error;
+    }
+  }
+
+  private async startHeyGenSession(): Promise<void> {
+    if (!this.sessionId || !this.isHeyGenSession) return;
+
+    try {
+      // Start the HeyGen streaming session
+      const response = await fetch('/api/avatar/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.sessionId })
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to start HeyGen session, will use fallback display');
+        return;
+      }
+
+      this.onStateChange?.({ phase: 'ready', isConnected: true });
+      console.log('HeyGen streaming session started successfully');
+
+    } catch (error) {
+      console.warn('HeyGen session start failed:', error);
     }
   }
 
