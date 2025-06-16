@@ -57,9 +57,16 @@ export class SimpleAvatarClient {
 
       console.log(`Avatar session created: ${this.sessionId} (HeyGen: ${this.isHeyGenSession})`);
 
-      // Only proceed if we have a real HeyGen session
+      // Manejar tanto HeyGen como fallback sessions
       if (!this.isHeyGenSession) {
-        throw new Error('Failed to create real HeyGen session');
+        console.log('Using fallback session - avatar will show static preview');
+        this.onStateChange?.({
+          phase: 'ready',
+          sessionId: this.sessionId,
+          previewUrl: result.data.previewUrl,
+          isConnected: false // Fallback mode
+        });
+        return; // No intentar operaciones de streaming
       }
 
       this.onStateChange?.({
@@ -114,6 +121,16 @@ export class SimpleAvatarClient {
     try {
       this.onStateChange?.({ phase: 'speaking' });
 
+      // Check if fallback session
+      if (!this.isHeyGenSession) {
+        console.log('Fallback session - simulating speech:', text);
+        // Simulate speaking for fallback
+        setTimeout(() => {
+          this.onStateChange?.({ phase: 'ready' });
+        }, 2000);
+        return;
+      }
+
       // Send text to HeyGen with REPEAT mode
       const response = await fetch('/api/avatar/speak', {
         method: 'POST',
@@ -129,7 +146,7 @@ export class SimpleAvatarClient {
         throw new Error('Failed to send text to avatar');
       }
 
-      console.log('Avatar speaking with repeat mode (TTS + LipSync):', text);
+      console.log('Avatar speaking with REPEAT mode (TTS + LipSync):', text);
 
       // Return to ready state after estimated speech time
       const estimatedSpeechTime = text.length * 50; // 50ms per character

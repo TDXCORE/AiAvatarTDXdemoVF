@@ -18,6 +18,8 @@ export class HeyGenService {
   private apiKey: string;
   private baseUrl = 'https://api.heygen.com/v1';
   private streamingUrl = 'https://api.heygen.com/v1/streaming';
+  private static activeSession: string | null = null;
+  private static sessionCreationLock: boolean = false;
 
   constructor() {
     this.apiKey = process.env.HEYGEN_API_KEY!;
@@ -28,6 +30,19 @@ export class HeyGenService {
 
   async createStreamingSession(avatarId?: string): Promise<HeyGenSessionData> {
     try {
+      // Prevent concurrent session creation
+      if (HeyGenService.sessionCreationLock) {
+        throw new Error('Session creation already in progress');
+      }
+
+      if (HeyGenService.activeSession) {
+        console.log('Closing existing active session before creating new one');
+        await this.closeSession(HeyGenService.activeSession);
+        HeyGenService.activeSession = null;
+      }
+
+      HeyGenService.sessionCreationLock = true;
+
       // Force cleanup all existing sessions first
       await this.forceCleanupAllSessions();
 
@@ -100,6 +115,10 @@ export class HeyGenService {
 
       const data = await response.json() as { data: HeyGenStreamingSession };
 
+      // Register active session
+      HeyGenService.activeSession = data.data.session_id;
+      console.log(`Active HeyGen session registered: ${HeyGenService.activeSession}`);
+
       return {
         sessionId: data.data.session_id,
         sessionToken: data.data.session_token,
@@ -110,6 +129,8 @@ export class HeyGenService {
     } catch (error) {
       console.error('Error creating HeyGen session:', error);
       throw new Error('Failed to create streaming session');
+    } finally {
+      HeyGenService.sessionCreationLock = false;
     }
   }
 
@@ -173,7 +194,11 @@ export class HeyGenService {
 
   async closeSession(sessionId: string): Promise<void> {
     try {
-
+      // Clear active session if it matches
+      if (HeyGenService.activeSession === sessionId) {
+        HeyGenService.activeSession = null;
+        console.log(`Cleared active session: ${sessionId}`);
+      }
 
       const response = await fetch(`${this.streamingUrl}.stop`, {
         method: 'POST',
