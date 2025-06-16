@@ -1,22 +1,33 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
-import { AnimatedAvatarDisplay } from "./animated-avatar-display";
-import { AvatarVideoPlayer } from "./avatar-video-player";
-import { useAudioRecorder } from "@/hooks/use-audio-recorder";
-import { AudioUtils } from "@/lib/audio-utils";
-import { TranscriptionResult } from "@/types/voice";
 import { Button } from "@/components/ui/button";
-import { Mic, MicOff, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
+import { useAudioRecorder } from "@/hooks/use-audio-recorder";
+import { useVoiceActivity } from "@/hooks/use-voice-activity";
+import { useAudioProcessor } from "@/hooks/use-audio-processor";
+import { useToast } from "@/hooks/use-toast";
+import { ChatMessage } from "@/types/voice";
+import { MessageBubble } from "../message-bubble";
+import { Mic, MicOff, X, Send, Settings, Phone, PhoneOff } from "lucide-react";
 
 interface AvatarModalProps {
   isOpen: boolean;
   onClose: () => void;
   sessionId: string;
   onMessageReceived?: (userMessage: string, aiResponse: string) => void;
+  videoRef?: React.RefObject<HTMLVideoElement>;
 }
 
-export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: AvatarModalProps) {
+export function AvatarModal({ 
+  isOpen, 
+  onClose, 
+  sessionId, 
+  onMessageReceived,
+  videoRef: externalVideoRef 
+}: AvatarModalProps) {
+  const { toast } = useToast();
   const [avatarState, setAvatarState] = useState<StreamingAvatarState>({
     phase: 'initializing',
     isConnected: false,
@@ -25,24 +36,92 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
   });
 
   const [isMuted, setIsMuted] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [textInput, setTextInput] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
   
   const avatarClientRef = useRef<StreamingAvatarClient | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const internalVideoRef = useRef<HTMLVideoElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Audio recording functionality
-  const { startRecording, stopRecording, isRecording } = useAudioRecorder({
+  // Use external video ref if provided, otherwise use internal
+  const videoRef = externalVideoRef || internalVideoRef;
+
+  // Voice Activity Detection
+  const vad = useVoiceActivity({
+    sensitivity: 70,
+    onSpeechStart: () => {
+      console.log('Avatar: Speech started');
+    },
+    onSpeechEnd: () => {
+      console.log('Avatar: Speech ended');
+      if (recorder.isRecording && isCallActive) {
+        handleStopRecording();
+      }
+    },
+  });
+
+  // Audio Recorder
+  const recorder = useAudioRecorder({
+    onRecordingStart: () => {
+      vad.startListening();
+    },
     onRecordingStop: async (result) => {
+      vad.stopListening();
       if (result.audioBlob) {
         await processAudioMessage(result.audioBlob);
       }
+    },
+    onError: (errorMessage) => {
+      toast({
+        title: 'Recording Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Audio processor hook
+  const audioProcessor = useAudioProcessor({
+    sessionId,
+    language: 'es',
+    onUserMessage: (message) => {
+      const userMessage: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'user',
+        content: message,
+        timestamp: new Date(),
+        isVoice: true,
+      };
+      setMessages(prev => [...prev, userMessage]);
+      onMessageReceived?.(message, ''); // Send immediately, AI response will come later
+    },
+    onAIResponse: async (response) => {
+      const assistantMessage: ChatMessage = {
+        id: `msg_${Date.now() + 1}`,
+        role: 'assistant',
+        content: response,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Send response to avatar
+      if (avatarClientRef.current?.isReady()) {
+        try {
+          await avatarClientRef.current.speakAgentResponse(response);
+        } catch (error) {
+          console.error('Failed to send response to avatar:', error);
+        }
+      }
+      
+      // Also notify parent component
+      onMessageReceived?.('', response);
     },
   });
 
   useEffect(() => {
     if (isOpen) {
-      // Delay initialization to ensure video element is mounted
       const timer = setTimeout(() => {
         initializeAvatarSession();
       }, 100);
@@ -58,12 +137,19 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     };
   }, []);
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const initializeAvatarSession = async () => {
     try {
       console.log('🎬 Iniciando sesión de avatar...');
       setAvatarState(prev => ({ ...prev, phase: 'initializing', error: null }));
 
-      // Ensure video element is available
       if (!videoRef.current) {
         console.error('❌ Video element not available');
         throw new Error('Video element not available');
@@ -104,73 +190,49 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
       return;
     }
 
-    setIsProcessing(true);
-    setAvatarState(prev => ({ ...prev, phase: 'listening' }));
-
     try {
-      // Transcribe audio
-      const formData = new FormData();
-      const wavBlob = await AudioUtils.convertToWav(audioBlob);
-      formData.append('audio', wavBlob, 'recording.wav');
-      formData.append('language', 'es');
-
-      const transcriptionResponse = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!transcriptionResponse.ok) {
-        throw new Error('Transcription failed');
-      }
-
-      const transcriptionResult: TranscriptionResult = await transcriptionResponse.json();
+      setAvatarState(prev => ({ ...prev, phase: 'listening' }));
       
-      if (!transcriptionResult.transcription || transcriptionResult.transcription.trim().length === 0) {
-        console.warn('No text transcribed from audio');
-        return;
-      }
-
-      console.log('User said:', transcriptionResult.transcription);
-
-      // Get AI response
-      const chatResponse = await fetch('/api/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          inputText: transcriptionResult.transcription,
-          sessionId: sessionId,
-          isAvatarCall: true,
-          avatarSessionId: avatarClientRef.current.getSessionToken()
-        }),
-      });
-
-      if (!chatResponse.ok) {
-        throw new Error('Chat response failed');
-      }
-
-      const chatResult = await chatResponse.json();
-      
-      if (chatResult.replyText) {
-        console.log('AI Response:', chatResult.replyText);
-        
-        // Pass messages to parent chat interface
-        onMessageReceived?.(transcriptionResult.transcription, chatResult.replyText);
-        
-        // Send to avatar for speech
-        await avatarClientRef.current?.speakAgentResponse(chatResult.replyText);
-      } else {
-        throw new Error('No response from AI agent');
-      }
+      await audioProcessor.processAudioMessage(
+        audioBlob, 
+        true, // isAvatarCall
+        avatarClientRef.current.getSessionToken()
+      );
 
     } catch (error) {
       console.error('Error processing audio message:', error);
+      toast({
+        title: 'Processing Error',
+        description: error instanceof Error ? error.message : 'Failed to process audio',
+        variant: 'destructive',
+      });
       setAvatarState(prev => ({ 
         ...prev, 
         phase: 'error', 
         error: error instanceof Error ? error.message : 'Processing failed' 
       }));
-    } finally {
-      setIsProcessing(false);
+    }
+  };
+
+  const handleSendText = async (text: string) => {
+    if (!text.trim() || !avatarClientRef.current?.isReady()) return;
+
+    try {
+      setTextInput('');
+      
+      await audioProcessor.processTextMessage(
+        text, 
+        true, // isAvatarCall
+        avatarClientRef.current.getSessionToken()
+      );
+
+    } catch (error) {
+      console.error('Error processing text message:', error);
+      toast({
+        title: 'Processing Error',
+        description: error instanceof Error ? error.message : 'Failed to process message',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -178,10 +240,14 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
+      setIsCallActive(true);
       setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
       
       // Send initial greeting
       await avatarClientRef.current.speakAgentResponse("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
+      
+      // Start VAD listening
+      vad.startListening();
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -191,8 +257,10 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
+      setIsCallActive(false);
+      vad.stopListening();
+      recorder.cancelRecording();
       await avatarClientRef.current.close();
-      setShowVideoPlayer(false);
       onClose();
     } catch (error) {
       console.error('Failed to end call:', error);
@@ -201,21 +269,30 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
 
   const handleMuteToggle = () => {
     setIsMuted(!isMuted);
+    if (!isMuted) {
+      vad.stopListening();
+      recorder.cancelRecording();
+    } else if (isCallActive) {
+      vad.startListening();
+    }
   };
 
   const handleStartRecording = () => {
-    if (!isMuted && avatarState.phase === 'ready') {
-      startRecording();
+    if (!isMuted && isCallActive && avatarState.phase === 'ready') {
+      recorder.startRecording();
     }
   };
 
   const handleStopRecording = () => {
-    if (isRecording) {
-      stopRecording();
+    if (recorder.isRecording) {
+      recorder.stopRecording();
     }
   };
 
   const cleanup = async () => {
+    vad.stopListening();
+    recorder.cancelRecording();
+    
     if (avatarClientRef.current) {
       try {
         await avatarClientRef.current.close();
@@ -227,23 +304,26 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
   };
 
   const ready = Boolean(avatarState.sessionToken) && avatarState.phase !== 'error' && avatarState.phase !== 'initializing';
-  const canStartCall = ready && avatarState.phase === 'ready';
+  const canStartCall = ready && !isCallActive;
+  const isProcessing = audioProcessor.isProcessing;
 
   const renderAvatarDisplay = () => {
     return (
       <div className="w-full h-full relative bg-gray-900 rounded-lg overflow-hidden">
         {/* Video element for StreamingAvatar */}
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          autoPlay
-          playsInline
-          muted={false}
-          onLoadStart={() => console.log('📹 Video loading started')}
-          onLoadedData={() => console.log('📹 Video data loaded')}
-          onPlay={() => console.log('📹 Video playing')}
-          onError={(e) => console.error('📹 Video error:', e)}
-        />
+        {!externalVideoRef && (
+          <video
+            ref={internalVideoRef}
+            className="w-full h-full object-cover"
+            autoPlay
+            playsInline
+            muted={false}
+            onLoadStart={() => console.log('📹 Video loading started')}
+            onLoadedData={() => console.log('📹 Video data loaded')}
+            onPlay={() => console.log('📹 Video playing')}
+            onError={(e) => console.error('📹 Video error:', e)}
+          />
+        )}
         
         {/* Fallback when no video stream */}
         {(!avatarState.isConnected || avatarState.phase === 'initializing' || avatarState.phase === 'connecting') && (
@@ -270,7 +350,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           </div>
         )}
         
-        {/* State overlays for connected states */}
+        {/* State overlays */}
         {avatarState.isConnected && avatarState.phase === 'speaking' && (
           <div className="absolute bottom-4 left-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
             <div className="w-2 h-2 bg-white rounded-full animate-bounce mr-2"></div>
@@ -291,18 +371,34 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
             Listo para conversar
           </div>
         )}
+
+        {/* VAD Status */}
+        {vad.vadDetected && isCallActive && (
+          <div className="absolute top-4 left-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
+            Detectando voz...
+          </div>
+        )}
+
+        {/* Recording indicator */}
+        {recorder.isRecording && (
+          <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
+            Grabando... {recorder.recordingDuration}s
+          </div>
+        )}
       </div>
     );
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[80vh] p-0">
+      <DialogContent className="max-w-6xl h-[90vh] p-0 flex flex-col">
         <DialogHeader className="p-6 pb-0 flex flex-row items-center justify-between">
           <div>
-            <DialogTitle>Dr. Carlos Mendoza</DialogTitle>
+            <DialogTitle>Dr. Carlos Mendoza - Consulta Virtual</DialogTitle>
             <DialogDescription>
-              Consulta con inteligencia artificial especializada en psicología
+              Conversa por voz o texto con tu asistente de IA especializado en psicología
             </DialogDescription>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
@@ -310,87 +406,169 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           </Button>
         </DialogHeader>
 
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex overflow-hidden">
           {/* Avatar Display */}
           <div className="flex-1 p-6">
-            <div className="w-full h-full bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-              {avatarState.phase === 'error' ? (
-                <div className="w-full h-full flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">⚠️</div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      Error de Conexión
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      {avatarState.error || 'No se pudo conectar con el servicio de avatar'}
-                    </p>
-                    <Button onClick={initializeAvatarSession} variant="outline">
-                      Reintentar Conexión
-                    </Button>
-                  </div>
+            {avatarState.phase === 'error' ? (
+              <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <div className="text-center">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    Error de Conexión
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    {avatarState.error || 'No se pudo conectar con el servicio de avatar'}
+                  </p>
+                  <Button onClick={initializeAvatarSession} variant="outline">
+                    Reintentar Conexión
+                  </Button>
                 </div>
-              ) : (
-                renderAvatarDisplay()
-              )}
-            </div>
+              </div>
+            ) : (
+              renderAvatarDisplay()
+            )}
           </div>
 
-          {/* Controls */}
-          <div className="p-6 pt-0">
-            <div className="flex items-center justify-center space-x-4">
+          {/* Chat Panel */}
+          <div className="w-96 border-l bg-gray-50 dark:bg-gray-900 flex flex-col">
+            {/* Chat Header */}
+            <div className="p-4 border-b">
+              <h3 className="font-medium">Conversación</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {isCallActive ? 'Consulta activa' : 'Lista para iniciar'}
+              </p>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.length === 0 && (
+                <div className="text-center text-gray-500 text-sm">
+                  <div className="w-12 h-12 mx-auto mb-2 bg-blue-100 rounded-full flex items-center justify-center">
+                    <span className="text-lg">👋</span>
+                  </div>
+                  Inicia la consulta para comenzar a conversar
+                </div>
+              )}
+
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onPlayAudio={() => {}} // Audio playback handled by avatar
+                />
+              ))}
+
+              {/* Processing indicator */}
+              {isProcessing && (
+                <div className="flex justify-start">
+                  <div className="bg-white max-w-xs px-4 py-3 rounded-r-2xl rounded-bl-lg shadow-sm border">
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Text Input */}
+            <div className="p-4 border-t">
+              <div className="flex space-x-2">
+                <Input
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Escribe tu mensaje..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendText(textInput);
+                    }
+                  }}
+                  disabled={!ready || isProcessing}
+                />
+                <Button
+                  onClick={() => handleSendText(textInput)}
+                  disabled={!textInput.trim() || !ready || isProcessing}
+                  size="icon"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="p-6 pt-0 border-t">
+          <div className="flex items-center justify-center space-x-4">
+            {/* Start/End Call */}
+            {canStartCall ? (
               <Button
-                variant={canStartCall ? "default" : "secondary"}
                 onClick={handleStartCall}
-                disabled={!canStartCall}
-              >
-                {avatarState.phase === 'initializing' && 'Conectando...'}
-                {avatarState.phase === 'connecting' && 'Preparando...'}
-                {avatarState.phase === 'ready' && 'Iniciar Consulta'}
-                {avatarState.phase === 'listening' && 'Consulta Activa'}
-                {avatarState.phase === 'speaking' && 'Dr. Carlos Hablando'}
-                {avatarState.phase === 'error' && 'Error de Conexión'}
-              </Button>
-              
-              <Button
-                variant={isRecording ? "destructive" : "outline"}
-                size="icon"
-                onMouseDown={handleStartRecording}
-                onMouseUp={handleStopRecording}
-                onTouchStart={handleStartRecording}
-                onTouchEnd={handleStopRecording}
-                disabled={isMuted || isProcessing || !ready}
-                title={!ready ? "Esperando conexión..." : isRecording ? "Suelta para enviar" : "Mantén presionado para hablar"}
-              >
-                {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </Button>
-
-              <Button
-                variant={isMuted ? "destructive" : "outline"}
-                onClick={handleMuteToggle}
                 disabled={!ready}
+                className="bg-green-600 hover:bg-green-700"
               >
-                {isMuted ? "Desactivar Silencio" : "Silenciar"}
+                <Phone className="h-4 w-4 mr-2" />
+                Iniciar Consulta
               </Button>
-
+            ) : (
               <Button
-                variant="outline"
                 onClick={handleEndCall}
-                disabled={avatarState.phase === 'initializing'}
+                variant="destructive"
+                disabled={!isCallActive}
               >
-                Finalizar
+                <PhoneOff className="h-4 w-4 mr-2" />
+                Finalizar Consulta
               </Button>
-            </div>
+            )}
             
-            {/* Status */}
-            <div className="text-center mt-4 text-sm text-gray-600 dark:text-gray-400">
-              {avatarState.phase === 'initializing' && "Conectando con Dr. Carlos..."}
-              {avatarState.phase === 'ready' && "Listo para conversar"}
-              {avatarState.phase === 'listening' && "Escuchando..."}
-              {avatarState.phase === 'speaking' && "Dr. Carlos está respondiendo..."}
-              {avatarState.phase === 'error' && "Error de conexión - Usando modo de respaldo"}
-              {isProcessing && "Procesando mensaje..."}
-              {avatarState.sessionToken && avatarState.phase !== 'error' && avatarState.phase !== 'initializing' && !isProcessing && "Sistema listo"}
-            </div>
+            {/* Voice Recording */}
+            <Button
+              variant={recorder.isRecording ? "destructive" : "outline"}
+              size="icon"
+              onMouseDown={handleStartRecording}
+              onMouseUp={handleStopRecording}
+              onTouchStart={handleStartRecording}
+              onTouchEnd={handleStopRecording}
+              disabled={isMuted || isProcessing || !isCallActive}
+              title={!isCallActive ? "Inicia la consulta primero" : recorder.isRecording ? "Suelta para enviar" : "Mantén presionado para hablar"}
+            >
+              {recorder.isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+
+            {/* Mute */}
+            <Button
+              variant={isMuted ? "destructive" : "outline"}
+              onClick={handleMuteToggle}
+              disabled={!ready}
+              size="icon"
+            >
+              {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+
+            {/* Settings */}
+            <Button
+              variant="outline"
+              onClick={() => setShowSettings(true)}
+              size="icon"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          {/* Status */}
+          <div className="text-center mt-4 text-sm text-gray-600 dark:text-gray-400">
+            {avatarState.phase === 'initializing' && "Conectando con Dr. Carlos..."}
+            {avatarState.phase === 'ready' && !isCallActive && "Presiona 'Iniciar Consulta' para comenzar"}
+            {avatarState.phase === 'ready' && isCallActive && "Mantén presionado el micrófono para hablar"}
+            {avatarState.phase === 'listening' && "Escuchando... puedes hablar ahora"}
+            {avatarState.phase === 'speaking' && "Dr. Carlos está respondiendo..."}
+            {avatarState.phase === 'error' && "Error de conexión - Usando modo de respaldo"}
+            {isProcessing && "Procesando mensaje..."}
+            {vad.vadDetected && isCallActive && " • Voz detectada"}
           </div>
         </div>
       </DialogContent>

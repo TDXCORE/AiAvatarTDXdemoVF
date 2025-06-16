@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { MessageBubble } from './message-bubble';
 import { VoiceControls } from './voice-controls';
 import { VoiceRecorder } from './voice-recorder';
@@ -15,9 +15,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useVoiceActivity } from '@/hooks/use-voice-activity';
 import { useAudioRecorder } from '@/hooks/use-audio-recorder';
+import { useAudioProcessor } from '@/hooks/use-audio-processor';
 import { apiRequest } from '@/lib/queryClient';
-import { ChatMessage, VoiceSettings, TranscriptionResult, LLMResponse } from '@/types/voice';
-import { AudioUtils } from '@/lib/audio-utils';
+import { ChatMessage, VoiceSettings } from '@/types/voice';
 import { Phone, MoreVertical, AlertTriangle, Bot } from 'lucide-react';
 import { StreamingAvatarClient } from "@/lib/streaming-avatar-client";
 
@@ -83,114 +83,54 @@ export function VoiceChat() {
     },
   });
 
-  // Transcription mutation
-  const transcribeMutation = useMutation({
-    mutationFn: async (audioBlob: Blob): Promise<TranscriptionResult> => {
-      const formData = new FormData();
-      const wavBlob = await AudioUtils.convertToWav(audioBlob);
-      formData.append('audio', wavBlob, 'recording.wav');
-      formData.append('language', settings.language);
-
-      const response = await fetch('/api/transcribe', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Transcription failed');
-      }
-
-      return response.json();
+  // Audio processor hook
+  const audioProcessor = useAudioProcessor({
+    sessionId,
+    language: settings.language,
+    onUserMessage: (message) => {
+      const userMessage: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'user',
+        content: message,
+        timestamp: new Date(),
+        isVoice: true,
+      };
+      setMessages(prev => [...prev, userMessage]);
     },
-  });
-
-  // LLM processing mutation
-  const processLLMMutation = useMutation({
-    mutationFn: async ({ inputText, isVoice, audioData }: { 
-      inputText: string; 
-      isVoice: boolean; 
-      audioData?: string;
-    }): Promise<LLMResponse> => {
-      const response = await apiRequest('POST', '/api/agent', {
-        inputText,
-        sessionId,
-        isVoice,
-        audioData,
-        vadDetected: vad.vadDetected,
-      });
-      return response.json();
+    onAIResponse: (response) => {
+      const assistantMessage: ChatMessage = {
+        id: `msg_${Date.now() + 1}`,
+        role: 'assistant',
+        content: response,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, assistantMessage]);
     },
   });
 
   const processAudioRecording = async (audioBlob: Blob) => {
     try {
       setIsProcessing(true);
+      setIsTyping(true);
 
-      // Transcribe audio
-      const transcriptionResult = await transcribeMutation.mutateAsync(audioBlob);
+      await audioProcessor.processAudioMessage(audioBlob);
 
-      if (!transcriptionResult.transcription?.trim()) {
+    } catch (error) {
+      console.error('Error processing audio:', error);
+      
+      if (error instanceof Error && error.message === 'No speech detected') {
         toast({
           title: 'No Speech Detected',
           description: 'Please try speaking more clearly.',
           variant: 'destructive',
         });
-        return;
+      } else {
+        toast({
+          title: 'Processing Error',
+          description: error instanceof Error ? error.message : 'Failed to process audio',
+          variant: 'destructive',
+        });
       }
-
-      // Convert audio to base64 for storage
-      const audioData = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(audioBlob);
-      });
-
-      // Add user message
-      const userMessage: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        role: 'user',
-        content: transcriptionResult.transcription,
-        timestamp: new Date(),
-        isVoice: true,
-        audioData,
-        metadata: {
-          transcriptionDuration: transcriptionResult.duration,
-          processingTime: transcriptionResult.processingTime,
-          vadDetected: vad.vadDetected,
-        },
-      };
-
-      setMessages(prev => [...prev, userMessage]);
-
-      // Process with LLM
-      setIsTyping(true);
-      const llmResponse = await processLLMMutation.mutateAsync({
-        inputText: transcriptionResult.transcription,
-        isVoice: true,
-        audioData,
-      });
-
-      // Add assistant message
-      const assistantMessage: ChatMessage = {
-        id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
-        content: llmResponse.replyText,
-        timestamp: new Date(),
-        metadata: {
-          processingTime: llmResponse.processingTime,
-        },
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
-
-    } catch (error) {
-      console.error('Error processing audio:', error);
-      toast({
-        title: 'Processing Error',
-        description: error instanceof Error ? error.message : 'Failed to process audio',
-        variant: 'destructive',
-      });
     } finally {
       setIsProcessing(false);
       setIsTyping(false);
@@ -200,37 +140,9 @@ export function VoiceChat() {
   const handleSendText = async (text: string) => {
     try {
       setIsProcessing(true);
-
-      // Add user message
-      const userMessage: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        role: 'user',
-        content: text,
-        timestamp: new Date(),
-        isVoice: false,
-      };
-
-      setMessages(prev => [...prev, userMessage]);
-
-      // Process with LLM
       setIsTyping(true);
-      const llmResponse = await processLLMMutation.mutateAsync({
-        inputText: text,
-        isVoice: false,  
-      });
 
-      // Add assistant message
-      const assistantMessage: ChatMessage = {
-        id: `msg_${Date.now() + 1}`,
-        role: 'assistant',
-        content: llmResponse.replyText,
-        timestamp: new Date(),
-        metadata: {
-          processingTime: llmResponse.processingTime,
-        },
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
+      await audioProcessor.processTextMessage(text);
 
     } catch (error) {
       console.error('Error processing text:', error);
