@@ -18,7 +18,7 @@ export class HeyGenService {
   private apiKey: string;
   private baseUrl = 'https://api.heygen.com/v1';
   private streamingUrl = 'https://api.heygen.com/v1/streaming';
-  
+
   constructor() {
     this.apiKey = process.env.HEYGEN_API_KEY!;
     if (!this.apiKey) {
@@ -30,7 +30,7 @@ export class HeyGenService {
     try {
       // Force cleanup all existing sessions first
       await this.forceCleanupAllSessions();
-      
+
       const response = await fetch(`${this.streamingUrl}.new`, {
         method: 'POST',
         headers: {
@@ -44,22 +44,22 @@ export class HeyGenService {
             voice_id: '08284d3fc63a424fbe80cc1864ed2540', // Dario - Natural (Spanish Male, Interactive Avatar Compatible)
             rate: 1.0
           },
-          task_type: "REPEAT" // CAMBIO CLAVE: evita streaming WebRTC completo
+          task_type: "TALK" // Usar TALK para streaming normal
         }),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error('HeyGen API error:', response.status, '-', errorText);
-        
+
         // If concurrent limit reached, try aggressive cleanup and retry
         if (response.status === 400 && errorText.includes('Concurrent limit reached')) {
           console.log('Concurrent limit reached, doing aggressive cleanup and retry...');
           await this.forceCleanupAllSessions();
-          
+
           // Wait 3 seconds and retry
           await new Promise(resolve => setTimeout(resolve, 3000));
-          
+
           const retryResponse = await fetch(`${this.streamingUrl}.new`, {
             method: 'POST',
             headers: {
@@ -73,16 +73,16 @@ export class HeyGenService {
                 voice_id: '08284d3fc63a424fbe80cc1864ed2540',
                 rate: 1.0
               },
-              task_type: "REPEAT" // CAMBIO CLAVE: evita streaming WebRTC completo
+              task_type: "TALK" // Usar TALK para streaming normal
             }),
           });
-          
+
           if (!retryResponse.ok) {
             const retryErrorText = await retryResponse.text();
             console.error('HeyGen retry failed:', retryResponse.status, '-', retryErrorText);
             throw new Error(`HeyGen API error after cleanup retry: ${retryResponse.status} - ${retryErrorText}`);
           }
-          
+
           const retryData = await retryResponse.json() as { data: HeyGenStreamingSession };
           console.log('HeyGen session created successfully after retry');
           return {
@@ -93,13 +93,13 @@ export class HeyGenService {
             estimatedReadyTime: 30000
           };
         }
-        
+
         console.error('HeyGen API error details:', errorText);
         throw new Error(`HeyGen API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json() as { data: HeyGenStreamingSession };
-      
+
       return {
         sessionId: data.data.session_id,
         sessionToken: data.data.session_token,
@@ -126,7 +126,7 @@ export class HeyGenService {
         body: JSON.stringify({
           session_id: sessionId,
           text: text,
-          task_type: 'REPEAT' // Cambio a REPEAT mode
+          task_type: 'TALK' // Cambio a REPEAT mode
         }),
       });
 
@@ -239,7 +239,7 @@ export class HeyGenService {
 
   async forceCleanupAllSessions(): Promise<void> {
     console.log('Force cleaning up all HeyGen sessions...');
-    
+
     // Extended list including all recent session IDs from logs
     const potentialSessionIds = [
       'fe0fc279-4a36-11f0-ba0d-5e3b6a3b504d',
@@ -252,7 +252,7 @@ export class HeyGenService {
       'josh_lite3_20230714_session',
       'streaming_session_1', 'streaming_session_2'
     ];
-    
+
     for (const sessionId of potentialSessionIds) {
       try {
         const response = await fetch(`${this.streamingUrl}.stop`, {
@@ -263,7 +263,7 @@ export class HeyGenService {
           },
           body: JSON.stringify({ session_id: sessionId }),
         });
-        
+
         if (response.ok) {
           console.log(`Cleaned session: ${sessionId}`);
         }
@@ -271,7 +271,7 @@ export class HeyGenService {
         // Ignore errors for non-existent sessions
       }
     }
-    
+
     // Wait 2 seconds after cleanup to ensure HeyGen's backend processes the closures
     await new Promise(resolve => setTimeout(resolve, 2000));
     console.log('Force cleanup completed with wait period');

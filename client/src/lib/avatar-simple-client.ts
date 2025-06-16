@@ -68,8 +68,8 @@ export class SimpleAvatarClient {
         isConnected: false
       });
 
-      // Start the HeyGen streaming session immediately
-      await this.startHeyGenSession();
+      // HeyGen TALK sessions are ready immediately, no need to start
+      console.log('HeyGen session ready for TALK mode');
 
     } catch (error) {
       console.error('Session initialization failed:', error);
@@ -120,7 +120,7 @@ export class SimpleAvatarClient {
         body: JSON.stringify({
           sessionId: this.sessionId,
           text: text,
-          taskType: 'REPEAT'
+          taskType: 'TALK'
         })
       });
 

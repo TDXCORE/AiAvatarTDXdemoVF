@@ -136,20 +136,28 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
         });
       }
 
-      // Try HeyGen first, fallback to local service
-      try {
-        await heygenService.sendTextToSpeech(text, sessionId);
-        res.json({
-          success: true,
-          message: "Text sent to avatar via HeyGen"
-        });
-      } catch (heygenError) {
-        // Use fallback service for TTS processing
+      // Check if it's a HeyGen session or fallback
+      if (sessionId.startsWith('fallback_')) {
         await fallbackService.sendTextToSpeech(text, sessionId);
         res.json({
           success: true,
           message: "Text processed via fallback service"
         });
+      } else {
+        try {
+          await heygenService.sendTextToSpeech(text, sessionId);
+          res.json({
+            success: true,
+            message: "Text sent to avatar via HeyGen"
+          });
+        } catch (heygenError) {
+          console.error('HeyGen TTS failed:', heygenError);
+          res.status(500).json({
+            success: false,
+            message: "Failed to send text to HeyGen avatar",
+            error: heygenError instanceof Error ? heygenError.message : "Unknown error"
+          });
+        }
       }
     } catch (error) {
       console.error('Avatar speak error:', error);
