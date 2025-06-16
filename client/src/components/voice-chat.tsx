@@ -244,6 +244,31 @@ export function VoiceChat() {
     }
   };
 
+  const handleAvatarMessage = (userMessage: string, aiResponse: string) => {
+    // Add user message from avatar conversation
+    const userChatMessage: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      role: 'user',
+      content: userMessage,
+      timestamp: new Date(),
+      isVoice: true,
+    };
+    
+    // Add assistant message from avatar conversation
+    const assistantChatMessage: ChatMessage = {
+      id: `msg_${Date.now() + 1}`,
+      role: 'assistant',
+      content: aiResponse,
+      timestamp: new Date(),
+      isVoice: true,
+      metadata: {
+        processingTime: 0
+      },
+    };
+    
+    setMessages(prev => [...prev, userChatMessage, assistantChatMessage]);
+  };
+
   const handleStartRecording = () => {
     recorder.startRecording();
   };
@@ -514,6 +539,7 @@ export function VoiceChat() {
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
         sessionId={conversation?.sessionId || ''}
+        onMessageReceived={handleAvatarMessage}
       />
     </div>
   );
