@@ -42,34 +42,53 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
 
   useEffect(() => {
     if (isOpen) {
-      initializeAvatarSession();
+      // Delay initialization to ensure video element is mounted
+      const timer = setTimeout(() => {
+        initializeAvatarSession();
+      }, 100);
+      return () => clearTimeout(timer);
     } else {
       cleanup();
     }
+  }, [isOpen]);
 
+  useEffect(() => {
     return () => {
       cleanup();
     };
-  }, [isOpen]);
+  }, []);
 
   const initializeAvatarSession = async () => {
     try {
-      setAvatarState(prev => ({ ...prev, phase: 'initializing' }));
+      console.log('🎬 Iniciando sesión de avatar...');
+      setAvatarState(prev => ({ ...prev, phase: 'initializing', error: null }));
 
+      // Ensure video element is available
       if (!videoRef.current) {
+        console.error('❌ Video element not available');
         throw new Error('Video element not available');
+      }
+
+      console.log('📹 Video element found:', videoRef.current);
+
+      // Cleanup any existing client
+      if (avatarClientRef.current) {
+        await avatarClientRef.current.close();
+        avatarClientRef.current = null;
       }
 
       // Initialize StreamingAvatar client
       avatarClientRef.current = new StreamingAvatarClient((newState) => {
+        console.log('🔄 Avatar state update:', newState);
         setAvatarState(prev => ({ ...prev, ...newState }));
       });
 
       // Initialize with video element
       await avatarClientRef.current.initialize(videoRef.current);
+      console.log('✅ Avatar client initialized successfully');
 
     } catch (error) {
-      console.error('Failed to initialize avatar session:', error);
+      console.error('❌ Failed to initialize avatar session:', error);
       setAvatarState(prev => ({ 
         ...prev, 
         phase: 'error', 
@@ -207,50 +226,69 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     }
   };
 
-  const ready = Boolean(avatarState.sessionToken) && avatarState.phase !== 'error';
+  const ready = Boolean(avatarState.sessionToken) && avatarState.phase !== 'error' && avatarState.phase !== 'initializing';
+  const canStartCall = ready && avatarState.phase === 'ready';
 
   const renderAvatarDisplay = () => {
     return (
-      <div className="w-full h-full relative">
+      <div className="w-full h-full relative bg-gray-900 rounded-lg overflow-hidden">
         {/* Video element for StreamingAvatar */}
         <video
           ref={videoRef}
-          className="w-full h-full object-cover bg-black rounded-lg"
+          className="w-full h-full object-cover"
           autoPlay
           playsInline
           muted={false}
+          onLoadStart={() => console.log('📹 Video loading started')}
+          onLoadedData={() => console.log('📹 Video data loaded')}
+          onPlay={() => console.log('📹 Video playing')}
+          onError={(e) => console.error('📹 Video error:', e)}
         />
         
-        {/* State overlays */}
-        {avatarState.phase === 'initializing' && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+        {/* Fallback when no video stream */}
+        {(!avatarState.isConnected || avatarState.phase === 'initializing' || avatarState.phase === 'connecting') && (
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
             <div className="text-center text-white">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-              <p className="text-sm">Inicializando Dr. Carlos...</p>
+              <div className="w-24 h-24 mx-auto mb-4 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-3xl">👨‍⚕️</span>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Dr. Carlos Mendoza</h3>
+              <p className="text-sm opacity-80 mb-4">Psicólogo Clínico Especializado</p>
+              {avatarState.phase === 'initializing' && (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-2"></div>
+                  <span className="text-sm">Inicializando...</span>
+                </div>
+              )}
+              {avatarState.phase === 'connecting' && (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-2"></div>
+                  <span className="text-sm">Conectando...</span>
+                </div>
+              )}
             </div>
           </div>
         )}
         
-        {avatarState.phase === 'connecting' && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <div className="text-center text-white">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-              <p className="text-sm">Conectando...</p>
-            </div>
-          </div>
-        )}
-        
-        {avatarState.phase === 'speaking' && (
+        {/* State overlays for connected states */}
+        {avatarState.isConnected && avatarState.phase === 'speaking' && (
           <div className="absolute bottom-4 left-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
             <div className="w-2 h-2 bg-white rounded-full animate-bounce mr-2"></div>
             Dr. Carlos está hablando...
           </div>
         )}
         
-        {avatarState.phase === 'listening' && (
+        {avatarState.isConnected && avatarState.phase === 'listening' && (
           <div className="absolute bottom-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
             Escuchando...
+          </div>
+        )}
+
+        {avatarState.isConnected && avatarState.phase === 'ready' && (
+          <div className="absolute bottom-4 left-4 bg-emerald-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
+            <div className="w-2 h-2 bg-white rounded-full mr-2"></div>
+            Listo para conversar
           </div>
         )}
       </div>
@@ -301,11 +339,16 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           <div className="p-6 pt-0">
             <div className="flex items-center justify-center space-x-4">
               <Button
-                variant={avatarState.sessionToken ? "default" : "secondary"}
+                variant={canStartCall ? "default" : "secondary"}
                 onClick={handleStartCall}
-                disabled={!avatarState.sessionToken || avatarState.phase === 'error'}
+                disabled={!canStartCall}
               >
-                {avatarState.sessionToken ? 'Iniciar Consulta' : 'Conectando...'}
+                {avatarState.phase === 'initializing' && 'Conectando...'}
+                {avatarState.phase === 'connecting' && 'Preparando...'}
+                {avatarState.phase === 'ready' && 'Iniciar Consulta'}
+                {avatarState.phase === 'listening' && 'Consulta Activa'}
+                {avatarState.phase === 'speaking' && 'Dr. Carlos Hablando'}
+                {avatarState.phase === 'error' && 'Error de Conexión'}
               </Button>
               
               <Button
@@ -315,7 +358,8 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
                 onMouseUp={handleStopRecording}
                 onTouchStart={handleStartRecording}
                 onTouchEnd={handleStopRecording}
-                disabled={isMuted || isProcessing}
+                disabled={isMuted || isProcessing || !ready}
+                title={!ready ? "Esperando conexión..." : isRecording ? "Suelta para enviar" : "Mantén presionado para hablar"}
               >
                 {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
@@ -323,6 +367,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
               <Button
                 variant={isMuted ? "destructive" : "outline"}
                 onClick={handleMuteToggle}
+                disabled={!ready}
               >
                 {isMuted ? "Desactivar Silencio" : "Silenciar"}
               </Button>

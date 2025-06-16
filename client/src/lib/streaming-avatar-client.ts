@@ -25,14 +25,20 @@ export class StreamingAvatarClient {
 
   async initialize(videoElement: HTMLVideoElement): Promise<void> {
     try {
+      console.log('🚀 Inicializando StreamingAvatar...');
       this.videoElement = videoElement;
       this.onStateChange?.({ phase: 'initializing' });
 
       // 1. Get token from backend
+      console.log('🔑 Obteniendo token...');
       const token = await this.getToken();
       this.sessionToken = token;
+      console.log('✅ Token obtenido exitosamente');
+
+      this.onStateChange?.({ sessionToken: token });
 
       // 2. Create StreamingAvatar instance
+      console.log('🎭 Creando instancia de StreamingAvatar...');
       this.streamingAvatar = new StreamingAvatar({ 
         token: token
       });
@@ -43,6 +49,7 @@ export class StreamingAvatarClient {
       this.onStateChange?.({ phase: 'connecting' });
 
       // 4. Create and start avatar
+      console.log('🎬 Iniciando avatar...');
       await this.streamingAvatar.createStartAvatar({
         quality: AvatarQuality.Low,
         avatarName: 'Dexter_Doctor_Standing2_public',
@@ -56,6 +63,17 @@ export class StreamingAvatarClient {
       console.log('🎉 StreamingAvatar initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize StreamingAvatar:', error);
+      
+      // Enhanced error logging
+      if (error && typeof error === 'object') {
+        console.error('Error details:', {
+          name: (error as any).name,
+          message: (error as any).message,
+          status: (error as any).status,
+          responseText: (error as any).responseText
+        });
+      }
+      
       this.onStateChange?.({ 
         phase: 'error', 
         error: error instanceof Error ? error.message : 'Initialization failed',
