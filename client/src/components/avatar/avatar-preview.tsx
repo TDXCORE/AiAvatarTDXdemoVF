@@ -22,20 +22,17 @@ export function AvatarPreview({ avatarState, className }: AvatarPreviewProps) {
 
   return (
     <div className={`relative rounded-lg overflow-hidden ${className || ''}`}>
-      <img
+      <iframe
         src={avatarState.previewUrl}
-        alt="Dr. Carlos Mendoza"
-        className="w-full h-full object-cover"
+        className="w-full h-full border-0"
+        title="Dr. Carlos Mendoza - Avatar Preview"
+        onLoad={() => {
+          console.log('Authentic HeyGen avatar preview loaded');
+        }}
         onError={(e) => {
-          console.warn('Avatar preview image failed to load');
-          const target = e.target as HTMLImageElement;
-          target.style.display = 'none';
+          console.warn('Avatar preview failed to load');
         }}
       />
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-        <h3 className="text-white font-semibold text-lg">Dr. Carlos Mendoza</h3>
-        <p className="text-white/80 text-sm">Psicólogo Clínico Especializado</p>
-      </div>
     </div>
   );
 }

@@ -77,33 +77,28 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
 
   return (
     <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
-      {/* Main avatar image with speaking animation */}
+      {/* Main avatar with authentic HeyGen preview */}
       <div className="relative w-full h-full">
-        <img
+        <iframe
           src={avatarState.previewUrl}
-          alt="Dr. Carlos Mendoza"
-          className={`w-full h-full object-cover transition-all duration-300 ${
+          className={`w-full h-full border-0 transition-all duration-300 ${
             isAnimating 
-              ? 'scale-105 brightness-110 animate-pulse' 
+              ? 'scale-105 brightness-110' 
               : 'scale-100 brightness-100'
           }`}
-          onError={(e) => {
-            // Fallback to placeholder if image fails to load
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
+          title="Dr. Carlos Mendoza - HeyGen Avatar"
+          onLoad={() => {
+            console.log('Authentic HeyGen avatar preview loaded for Dr. Carlos Mendoza');
+          }}
+          onError={() => {
+            console.warn('HeyGen avatar preview failed to load');
           }}
         />
         
         {/* Speaking animation overlay */}
         {isAnimating && (
-          <div className="absolute inset-0 bg-blue-400/10 animate-pulse"></div>
+          <div className="absolute inset-0 bg-blue-400/10 animate-pulse pointer-events-none"></div>
         )}
-        
-        {/* Professional info overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
-          <h3 className="text-white font-semibold text-lg">Dr. Carlos Mendoza</h3>
-          <p className="text-white/80 text-sm">Psicólogo Clínico Especializado</p>
-        </div>
       </div>
 
       {/* State-specific overlays */}
