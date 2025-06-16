@@ -19,6 +19,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { ChatMessage, VoiceSettings, TranscriptionResult, LLMResponse } from '@/types/voice';
 import { AudioUtils } from '@/lib/audio-utils';
 import { Phone, MoreVertical, AlertTriangle, Bot } from 'lucide-react';
+import { StreamingAvatarClient } from "@/lib/streaming-avatar-client";
 
 export function VoiceChat() {
   const { toast } = useToast();
@@ -31,7 +32,7 @@ export function VoiceChat() {
   const [error, setError] = useState<string | null>(null);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
   const [settings, setSettings] = useState<VoiceSettings>({
     vadSensitivity: 70,
     language: 'es',
@@ -89,17 +90,17 @@ export function VoiceChat() {
       const wavBlob = await AudioUtils.convertToWav(audioBlob);
       formData.append('audio', wavBlob, 'recording.wav');
       formData.append('language', settings.language);
-      
+
       const response = await fetch('/api/transcribe', {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.message || 'Transcription failed');
       }
-      
+
       return response.json();
     },
   });
@@ -125,10 +126,10 @@ export function VoiceChat() {
   const processAudioRecording = async (audioBlob: Blob) => {
     try {
       setIsProcessing(true);
-      
+
       // Transcribe audio
       const transcriptionResult = await transcribeMutation.mutateAsync(audioBlob);
-      
+
       if (!transcriptionResult.transcription?.trim()) {
         toast({
           title: 'No Speech Detected',
@@ -159,9 +160,9 @@ export function VoiceChat() {
           vadDetected: vad.vadDetected,
         },
       };
-      
+
       setMessages(prev => [...prev, userMessage]);
-      
+
       // Process with LLM
       setIsTyping(true);
       const llmResponse = await processLLMMutation.mutateAsync({
@@ -169,7 +170,7 @@ export function VoiceChat() {
         isVoice: true,
         audioData,
       });
-      
+
       // Add assistant message
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
@@ -180,9 +181,9 @@ export function VoiceChat() {
           processingTime: llmResponse.processingTime,
         },
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
-      
+
     } catch (error) {
       console.error('Error processing audio:', error);
       toast({
@@ -199,7 +200,7 @@ export function VoiceChat() {
   const handleSendText = async (text: string) => {
     try {
       setIsProcessing(true);
-      
+
       // Add user message
       const userMessage: ChatMessage = {
         id: `msg_${Date.now()}`,
@@ -208,16 +209,16 @@ export function VoiceChat() {
         timestamp: new Date(),
         isVoice: false,
       };
-      
+
       setMessages(prev => [...prev, userMessage]);
-      
+
       // Process with LLM
       setIsTyping(true);
       const llmResponse = await processLLMMutation.mutateAsync({
         inputText: text,
         isVoice: false,  
       });
-      
+
       // Add assistant message
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
@@ -228,9 +229,9 @@ export function VoiceChat() {
           processingTime: llmResponse.processingTime,
         },
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
-      
+
     } catch (error) {
       console.error('Error processing text:', error);
       toast({
@@ -244,7 +245,20 @@ export function VoiceChat() {
     }
   };
 
-  const handleAvatarMessage = (userMessage: string, aiResponse: string) => {
+  const [avatarState, setAvatarState] = useState({});
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [avatarClient] = useState(() => new StreamingAvatarClient(
+    (state) => setAvatarState(prev => ({ ...prev, ...state }))
+  ));
+
+  useEffect(() => {
+    if (videoRef.current) {
+      avatarClient.initialize(videoRef.current);
+    }
+  }, [avatarClient]);
+
+  const handleAvatarMessage = async (userMessage: string, aiResponse: string) => {
     // Add user message from avatar conversation
     const userChatMessage: ChatMessage = {
       id: `msg_${Date.now()}`,
@@ -253,7 +267,7 @@ export function VoiceChat() {
       timestamp: new Date(),
       isVoice: true,
     };
-    
+
     // Add assistant message from avatar conversation
     const assistantChatMessage: ChatMessage = {
       id: `msg_${Date.now() + 1}`,
@@ -265,7 +279,7 @@ export function VoiceChat() {
         processingTime: 0
       },
     };
-    
+
     setMessages(prev => [...prev, userChatMessage, assistantChatMessage]);
   };
 
@@ -315,7 +329,7 @@ export function VoiceChat() {
             </Avatar>
             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white" />
           </div>
-          
+
           <div className="flex-1">
             <h1 className="font-semibold text-lg">AI Voice Assistant</h1>
             <p className="text-xs text-green-100 flex items-center space-x-1">
@@ -323,7 +337,7 @@ export function VoiceChat() {
               <span>Online • Voice-enabled</span>
             </p>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Button
               variant="ghost"
@@ -451,7 +465,7 @@ export function VoiceChat() {
           <DialogHeader>
             <DialogTitle>Voice Settings</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-6">
             {/* VAD Sensitivity */}
             <div>
@@ -540,7 +554,10 @@ export function VoiceChat() {
         onClose={() => setIsAvatarModalOpen(false)}
         sessionId={conversation?.sessionId || ''}
         onMessageReceived={handleAvatarMessage}
+        videoRef={videoRef}
       />
+
+<video ref={videoRef} style={{ display: 'none' }} />
     </div>
   );
 }
