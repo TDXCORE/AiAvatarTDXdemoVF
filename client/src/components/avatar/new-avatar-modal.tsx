@@ -229,6 +229,15 @@ export function NewAvatarModal({
     try {
       setTextInput('');
 
+      const userMessage: ChatMessage = {
+        id: `msg_${Date.now()}`,
+        role: 'user',
+        content: text,
+        timestamp: new Date(),
+        isVoice: false,
+      };
+      setMessages(prev => [...prev, userMessage]);
+
       await audioProcessor.processTextMessage(
         text, 
         true,
@@ -327,7 +336,7 @@ export function NewAvatarModal({
   const ready = Boolean(avatarState.sessionToken) && avatarState.phase !== 'error' && avatarState.phase !== 'initializing';
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={() => {}} modal={true}>
       <DialogContent className="max-w-full max-h-full h-screen w-screen p-0 m-0 flex flex-col bg-black">
         <DialogTitle className="sr-only">TDX DEMO DOCTOR</DialogTitle>
         <DialogDescription className="sr-only">TDX DEMO DOCTOR</DialogDescription>
@@ -350,7 +359,8 @@ export function NewAvatarModal({
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/10"
+            onClick={onClose}
+            className="text-white hover:bg-red-500 bg-red-600/20"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -448,7 +458,9 @@ export function NewAvatarModal({
             <Button
               variant="outline"
               size="icon"
-              className="w-12 h-12 rounded-full bg-white text-black hover:bg-gray-100"
+              className={`w-12 h-12 rounded-full ${textInput.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white text-black hover:bg-gray-100'} transition-colors`}
+              onClick={() => textInput.trim() && handleSendText(textInput)}
+              disabled={!textInput.trim() || !ready || audioProcessor.isProcessing}
             >
               <MessageSquare className="h-5 w-5" />
             </Button>
@@ -459,8 +471,8 @@ export function NewAvatarModal({
             <Input
               value={textInput}
               onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-1 bg-white text-black rounded-full px-4 py-3 border-0"
+              placeholder={audioProcessor.isProcessing ? "Procesando..." : "Escribe tu mensaje aquí..."}
+              className={`flex-1 ${audioProcessor.isProcessing ? 'bg-gray-100' : 'bg-white'} text-black rounded-full px-4 py-3 border-2 ${textInput.trim() ? 'border-blue-500' : 'border-gray-300'} focus:border-blue-600`}
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
@@ -480,14 +492,23 @@ export function NewAvatarModal({
           </div>
 
           {/* Status */}
-          <div className="text-center mt-3 text-sm text-white/70">
-            {avatarState.phase === 'initializing' && "Connecting to Doctor..."}
-            {avatarState.phase === 'ready' && !isCallActive && "Ready to start conversation"}
-            {avatarState.phase === 'ready' && isCallActive && "Press and hold microphone to speak"}
-            {avatarState.phase === 'listening' && "You can speak now"}
-            {avatarState.phase === 'speaking' && "Doctor is responding..."}
-            {avatarState.phase === 'error' && "Connection error - Please try again"}
-            {audioProcessor.isProcessing && "Processing message..."}
+          <div className="text-center mt-3 text-sm">
+            {audioProcessor.isProcessing && (
+              <div className="flex items-center justify-center space-x-2 text-blue-400">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                <span>Procesando mensaje...</span>
+              </div>
+            )}
+            {!audioProcessor.isProcessing && (
+              <div className="text-white/70">
+                {avatarState.phase === 'initializing' && "Conectando con el Doctor..."}
+                {avatarState.phase === 'ready' && !isCallActive && "Listo para comenzar la conversación"}
+                {avatarState.phase === 'ready' && isCallActive && "Mantén presionado el micrófono para hablar o usa el chat de texto"}
+                {avatarState.phase === 'listening' && "Puedes hablar ahora o escribir un mensaje"}
+                {avatarState.phase === 'speaking' && "El Doctor está respondiendo..."}
+                {avatarState.phase === 'error' && "Error de conexión - Intenta nuevamente"}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>

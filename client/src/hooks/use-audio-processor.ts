@@ -156,6 +156,7 @@ export function useAudioProcessor(options: UseAudioProcessorOptions) {
     isAvatarCall = false, 
     avatarSessionId: string | null = null
   ) => {
+    console.log('📝 Processing text message:', text);
     const userMessage = text;
     onUserMessage?.(userMessage);
 
@@ -170,6 +171,7 @@ export function useAudioProcessor(options: UseAudioProcessorOptions) {
     const aiResponse = llmResponse.replyText;
     onAIResponse?.(aiResponse);
 
+    console.log('✅ Text message processed successfully');
     return { userMessage, aiResponse, llmResponse };
   };
 
