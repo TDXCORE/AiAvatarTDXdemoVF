@@ -147,7 +147,7 @@ export class HeyGenService {
         body: JSON.stringify({
           session_id: sessionId,
           text: text,
-          task_type: 'talk' // Usar 'talk' en lugar de 'repeat'
+          task_type: 'repeat' // Usar 'repeat' en lugar de 'talk'
         }),
       });
 
