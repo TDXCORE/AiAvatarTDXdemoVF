@@ -53,6 +53,9 @@ export function AvatarModal({
     sensitivity: 70,
     onSpeechStart: () => {
       console.log('Avatar: Speech started');
+      if (!recorder.isRecording && isCallActive && !isMuted) {
+        handleStartRecording();
+      }
     },
     onSpeechEnd: () => {
       console.log('Avatar: Speech ended');
@@ -122,10 +125,25 @@ export function AvatarModal({
 
   useEffect(() => {
     if (isOpen) {
-      const timer = setTimeout(() => {
-        initializeAvatarSession();
-      }, 100);
-      return () => clearTimeout(timer);
+      // Check microphone permissions first
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(() => {
+          console.log('🎤 Microphone permissions granted');
+          const timer = setTimeout(() => {
+            initializeAvatarSession();
+          }, 100);
+          return () => clearTimeout(timer);
+        })
+        .catch((error) => {
+          console.error('🎤 Microphone permission denied:', error);
+          toast({
+            title: 'Permisos de Micrófono',
+            description: 'Necesitas permitir el acceso al micrófono para usar la función de voz.',
+            variant: 'destructive',
+          });
+          // Still initialize avatar for text-only mode
+          initializeAvatarSession();
+        });
     } else {
       cleanup();
     }
@@ -246,8 +264,13 @@ export function AvatarModal({
       // Send initial greeting
       await avatarClientRef.current.speakAgentResponse("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
       
-      // Start VAD listening
-      vad.startListening();
+      // Start VAD listening automatically
+      setTimeout(() => {
+        if (!isMuted) {
+          vad.startListening();
+          console.log('🎤 VAD started for avatar conversation');
+        }
+      }, 2000); // Wait 2 seconds after greeting
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -318,15 +341,25 @@ export function AvatarModal({
             autoPlay
             playsInline
             muted={false}
+            controls={false}
             onLoadStart={() => console.log('📹 Video loading started')}
             onLoadedData={() => console.log('📹 Video data loaded')}
             onPlay={() => console.log('📹 Video playing')}
             onError={(e) => console.error('📹 Video error:', e)}
+            onCanPlay={() => console.log('📹 Video can play')}
+            onLoadedMetadata={() => console.log('📹 Video metadata loaded')}
           />
         )}
         
-        {/* Fallback when no video stream */}
-        {(!avatarState.isConnected || avatarState.phase === 'initializing' || avatarState.phase === 'connecting') && (
+        {/* Show external video if provided */}
+        {externalVideoRef?.current && (
+          <div className="absolute inset-0">
+            {/* External video is already rendered elsewhere */}
+          </div>
+        )}
+        
+        {/* Fallback when no video stream or connection issues */}
+        {(!avatarState.isConnected || avatarState.phase === 'initializing' || avatarState.phase === 'connecting' || avatarState.phase === 'error') && (
           <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
             <div className="text-center text-white">
               <div className="w-24 h-24 mx-auto mb-4 bg-blue-600 rounded-full flex items-center justify-center">
@@ -344,6 +377,13 @@ export function AvatarModal({
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-2"></div>
                   <span className="text-sm">Conectando...</span>
+                </div>
+              )}
+              {avatarState.phase === 'error' && (
+                <div className="text-center">
+                  <div className="text-4xl mb-2">⚠️</div>
+                  <p className="text-sm mb-2">Modo de respaldo activo</p>
+                  <p className="text-xs opacity-80">El avatar funciona solo por audio</p>
                 </div>
               )}
             </div>
@@ -531,10 +571,11 @@ export function AvatarModal({
               size="icon"
               onMouseDown={handleStartRecording}
               onMouseUp={handleStopRecording}
+              onMouseLeave={handleStopRecording}
               onTouchStart={handleStartRecording}
               onTouchEnd={handleStopRecording}
-              disabled={isMuted || isProcessing || !isCallActive}
-              title={!isCallActive ? "Inicia la consulta primero" : recorder.isRecording ? "Suelta para enviar" : "Mantén presionado para hablar"}
+              disabled={isMuted || isProcessing || !isCallActive || !ready}
+              title={!isCallActive ? "Inicia la consulta primero" : !ready ? "Esperando conexión..." : recorder.isRecording ? "Suelta para enviar" : "Mantén presionado para hablar"}
             >
               {recorder.isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
