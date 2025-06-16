@@ -58,7 +58,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
 
     try {
       setIsRecording(false);
-      
+
       if (durationIntervalRef.current) {
         clearInterval(durationIntervalRef.current);
         durationIntervalRef.current = null;
@@ -79,7 +79,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
       onRecordingStop?.(result);
       mediaRecorderRef.current = null;
       setRecordingDuration(0);
-      
+
       return result;
     } catch (error) {
       console.error('Failed to stop recording:', error);
@@ -92,7 +92,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
     if (!isRecording) return;
 
     setIsRecording(false);
-    
+
     if (durationIntervalRef.current) {
       clearInterval(durationIntervalRef.current);
       durationIntervalRef.current = null;

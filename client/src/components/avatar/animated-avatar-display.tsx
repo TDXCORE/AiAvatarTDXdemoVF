@@ -68,10 +68,10 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
   // Show HeyGen streaming interface only for real HeyGen sessions
   if (avatarState.sessionId) {
     console.log('Displaying avatar for session:', avatarState.sessionId);
-    
+
     // Check if it's a real HeyGen session or fallback
     const isHeyGenSession = !avatarState.sessionId.startsWith('fallback_');
-    
+
     return (
       <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
         {isHeyGenSession ? (
@@ -94,43 +94,106 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
                 console.warn('HeyGen streaming failed');
               }}
             />
-            
+
             {/* Speaking animation overlay */}
             {isAnimating && (
               <div className="absolute inset-0 bg-blue-400/10 animate-pulse pointer-events-none"></div>
             )}
-            
+
             {/* HeyGen Session Indicator */}
             <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs">
               ✓ HeyGen Live
             </div>
           </div>
         ) : (
-          /* Fallback static avatar with premium styling */
-          <div className="relative w-full h-full bg-gradient-to-br from-blue-900 via-indigo-800 to-purple-900 flex items-center justify-center">
-            <div className="relative">
-              {/* Professional doctor avatar */}
-              <div className="w-64 h-64 rounded-full bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center border-4 border-white shadow-2xl">
-                <div className="text-8xl">👨‍⚕️</div>
+          /* Fallback Avatar - Static Image with Animations */
+          <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center">
+            {/* Professional Avatar Background */}
+            <div className="relative w-64 h-80 rounded-lg bg-white shadow-2xl overflow-hidden">
+              {/* Avatar SVG - Always show professional doctor */}
+              <div className={`w-full h-full flex items-center justify-center transition-all duration-300 ${
+                isAnimating ? 'scale-105 brightness-110' : 'scale-100 brightness-100'
+              }`}>
+                <svg width="100%" height="100%" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style={{stopColor:"#1D4ED8", stopOpacity:1}} />
+                      <stop offset="100%" style={{stopColor:"#3B82F6", stopOpacity:1}} />
+                    </linearGradient>
+                    <linearGradient id="suit" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style={{stopColor:"#1F2937", stopOpacity:1}} />
+                      <stop offset="100%" style={{stopColor:"#374151", stopOpacity:1}} />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Background */}
+                  <rect width="400" height="500" fill="url(#bg)" />
+
+                  {/* Doctor Body */}
+                  <ellipse cx="200" cy="450" rx="120" ry="50" fill="url(#suit)" />
+
+                  {/* White Coat */}
+                  <path d="M120 320 L280 320 L290 480 L110 480 Z" fill="white" stroke="#E5E7EB" strokeWidth="2"/>
+
+                  {/* Stethoscope */}
+                  <circle cx="180" cy="350" r="15" fill="none" stroke="#10B981" strokeWidth="3"/>
+                  <path d="M180 335 Q200 300 220 330" fill="none" stroke="#10B981" strokeWidth="3"/>
+
+                  {/* Head */}
+                  <circle cx="200" cy="200" r="80" fill="#FBBF24" />
+
+                  {/* Hair */}
+                  <path d="M140 150 Q200 120 260 150 Q250 140 200 130 Q150 140 140 150" fill="#92400E" />
+
+                  {/* Eyes */}
+                  <circle cx="175" cy="190" r="8" fill="white" />
+                  <circle cx="225" cy="190" r="8" fill="white" />
+                  <circle cx="175" cy="190" r="4" fill="black" />
+                  <circle cx="225" cy="190" r="4" fill="black" />
+
+                  {/* Nose */}
+                  <ellipse cx="200" cy="210" rx="6" ry="10" fill="#F59E0B" />
+
+                  {/* Mouth */}
+                  <path d="M185 230 Q200 240 215 230" fill="none" stroke="#DC2626" strokeWidth="3" strokeLinecap="round"/>
+
+                  {/* Glasses */}
+                  <circle cx="175" cy="190" r="20" fill="none" stroke="#374151" strokeWidth="2"/>
+                  <circle cx="225" cy="190" r="20" fill="none" stroke="#374151" strokeWidth="2"/>
+                  <line x1="195" y1="190" x2="205" y2="190" stroke="#374151" strokeWidth="2"/>
+
+                  {/* Speaking indicator */}
+                  {isAnimating && (
+                    <>
+                      <circle cx="260" cy="180" r="3" fill="#3B82F6" opacity="0.8">
+                        <animate attributeName="r" values="3;8;3" dur="1s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="0.8;0.2;0.8" dur="1s" repeatCount="indefinite"/>
+                      </circle>
+                      <circle cx="275" cy="170" r="2" fill="#3B82F6" opacity="0.6">
+                        <animate attributeName="r" values="2;6;2" dur="1.2s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="0.6;0.1;0.6" dur="1.2s" repeatCount="indefinite"/>
+                      </circle>
+                      <circle cx="285" cy="165" r="1" fill="#3B82F6" opacity="0.4">
+                        <animate attributeName="r" values="1;4;1" dur="0.8s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="0.4;0.1;0.4" dur="0.8s" repeatCount="indefinite"/>
+                      </circle>
+                    </>
+                  )}
+                </svg>
               </div>
-              
-              {/* Speaking animation */}
-              {isAnimating && (
-                <div className="absolute inset-0 rounded-full border-4 border-blue-400 animate-ping"></div>
-              )}
-            </div>
-            
-            {/* Professional overlay */}
-            <div className="absolute bottom-8 left-8 right-8 bg-white/10 backdrop-blur-md rounded-lg p-4 text-white text-center">
-              <h3 className="text-xl font-bold">Dr. Carlos Mendoza</h3>
-              <p className="text-sm opacity-90">Psicólogo Clínico</p>
+
+              {/* Professional overlay */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600/90 to-transparent p-4">
+                <h3 className="text-white font-semibold text-lg">Dr. Carlos Mendoza</h3>
+                <p className="text-blue-100 text-sm">Psicólogo Clínico</p>
+              </div>
             </div>
           </div>
         )}
 
         {/* State-specific overlays */}
         {renderStateOverlay()}
-        
+
         {/* Connection indicator */}
         <div className="absolute top-4 right-4">
           <div className={`w-3 h-3 rounded-full ${

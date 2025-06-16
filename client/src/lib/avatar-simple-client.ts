@@ -121,46 +121,44 @@ export class SimpleAvatarClient {
     try {
       this.onStateChange?.({ phase: 'speaking' });
 
-      // Check if fallback session
-      if (!this.isHeyGenSession) {
+      // Check if it's a fallback session
+      const isFallbackSession = this.sessionId.startsWith('fallback_');
+
+      if (isFallbackSession) {
+        // For fallback sessions, just simulate speech
         console.log('Fallback session - simulating speech:', text);
-        // Simulate speaking for fallback
+
+        // Simulate speech duration based on text length
+        const estimatedDuration = Math.max(2000, text.length * 80); // ~80ms per character, minimum 2 seconds
+
         setTimeout(() => {
           this.onStateChange?.({ phase: 'ready' });
-        }, 2000);
-        return;
+        }, estimatedDuration);
+      } else {
+        // For real HeyGen sessions, use the API
+        const response = await fetch('/api/avatar/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            sessionId: this.sessionId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to send text to avatar');
+        }
+
+        // Simulate speech duration
+        const estimatedDuration = text.length * 60; // ~60ms per character
+        setTimeout(() => {
+          this.onStateChange?.({ phase: 'ready' });
+        }, Math.max(2000, estimatedDuration));
       }
-
-      // Send text to HeyGen with REPEAT mode
-      const response = await fetch('/api/avatar/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          text: text,
-          taskType: 'REPEAT'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send text to avatar');
-      }
-
-      console.log('Avatar speaking with REPEAT mode (TTS + LipSync):', text);
-
-      // Return to ready state after estimated speech time
-      const estimatedSpeechTime = text.length * 50; // 50ms per character
-      setTimeout(() => {
-        this.onStateChange?.({ phase: 'ready' });
-      }, Math.max(estimatedSpeechTime, 2000));
 
     } catch (error) {
-      console.error('Avatar speech failed:', error);
-      this.onStateChange?.({
-        phase: 'error',
-        error: error instanceof Error ? error.message : 'Speech failed'
-      });
-      throw error;
+      console.error('Error sending text to avatar:', error);
+      this.onStateChange?.({ phase: 'error', error: error instanceof Error ? error.message : 'Speech failed' });
     }
   }
 
@@ -211,5 +209,9 @@ export class SimpleAvatarClient {
 
   isActive(): boolean {
     return this.sessionId !== null;
+  }
+
+  updateState(newState: Partial<SimpleAvatarState>) {
+    this.onStateChange?.(newState);
   }
 }

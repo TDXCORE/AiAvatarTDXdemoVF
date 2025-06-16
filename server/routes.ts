@@ -29,19 +29,19 @@ const psychologicalAgent = new PsychologicalAgent(storage);
 const heygenService = new HeyGenService();
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+
   // Get or create conversation
   app.post("/api/conversations", async (req, res) => {
     try {
       const { sessionId } = insertConversationSchema.parse(req.body);
-      
+
       // Check if conversation already exists
       let conversation = await storage.getConversation(sessionId);
-      
+
       if (!conversation) {
         conversation = await storage.createConversation({ sessionId });
       }
-      
+
       res.json(conversation);
     } catch (error) {
       res.status(400).json({ 
@@ -122,7 +122,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/agent", async (req, res) => {
     try {
       const { inputText, sessionId } = req.body;
-      
+
       if (!inputText || !sessionId) {
         return res.status(400).json({ message: "Missing required fields" });
       }
@@ -140,11 +140,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If this is an avatar call, send the response to HeyGen
       if (req.body.isAvatarCall && req.body.avatarSessionId) {
-        try {
-          await heygenService.sendTextToSpeech(assistantReply, req.body.avatarSessionId);
-        } catch (error) {
-          console.error('Failed to send response to avatar:', error);
-          // Continue anyway - the text response will still be returned
+        const isAvatarCall = req.body.isAvatarCall;
+        const avatarSessionId = req.body.avatarSessionId;
+        const replyText = assistantReply;
+        // Send response to avatar if avatar session is active
+        if (isAvatarCall && avatarSessionId) {
+          try {
+            // Check if it's a fallback session
+            if (avatarSessionId.startsWith('fallback_')) {
+              console.log(`Fallback TTS for session ${avatarSessionId}: "${replyText}"`);
+              // For fallback sessions, just log - no actual TTS
+            } else {
+              // For real HeyGen sessions, use the service
+              await heygenService.sendTextToSpeech(replyText, avatarSessionId);
+            }
+          } catch (avatarError) {
+            console.error('Failed to send response to avatar:', avatarError);
+            // Don't fail the whole request if avatar TTS fails
+          }
         }
       }
 
@@ -175,7 +188,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get session state for context
       const sessionState = psychologicalAgent.getSessionState(sessionId);
-      
+
       res.json({
         replyText: assistantReply,
         processingTime,
@@ -200,7 +213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/interrupt", async (req, res) => {
     try {
       const { sessionId } = req.body;
-      
+
       if (!sessionId) {
         return res.status(400).json({ message: "Session ID required" });
       }
@@ -221,7 +234,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Add session management endpoints
   addSessionEndpoints(app, psychologicalAgent);
-  
+
   // Add avatar endpoints
   addAvatarRoutes(app, heygenService);
 
