@@ -65,11 +65,11 @@ export class SimpleAvatarClient {
         phase: 'ready',
         sessionId: this.sessionId,
         previewUrl: result.data.previewUrl,
-        isConnected: false
+        isConnected: true // Activar preview inmediatamente
       });
 
-      // HeyGen TALK sessions are ready immediately, no need to start
-      console.log('HeyGen session ready for TALK mode');
+      // HeyGen REPEAT sessions son ready inmediatamente, preview activado
+      console.log('HeyGen session ready for REPEAT mode with preview active');
 
     } catch (error) {
       console.error('Session initialization failed:', error);
@@ -120,7 +120,7 @@ export class SimpleAvatarClient {
         body: JSON.stringify({
           sessionId: this.sessionId,
           text: text,
-          taskType: 'TALK'
+          taskType: 'REPEAT'
         })
       });
 
@@ -128,7 +128,7 @@ export class SimpleAvatarClient {
         throw new Error('Failed to send text to avatar');
       }
 
-      console.log('Avatar speaking with REPEAT mode:', text);
+      console.log('Avatar speaking with REPEAT mode (TTS + LipSync):', text);
 
       // Return to ready state after estimated speech time
       const estimatedSpeechTime = text.length * 50; // 50ms per character

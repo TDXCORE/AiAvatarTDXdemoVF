@@ -61,13 +61,11 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
         setAvatarState(prev => ({ ...prev, ...newState }));
       });
 
-      // Create session and immediately connect to streaming
+      // Create session with REPEAT mode y activar preview inmediatamente
       await avatarClientRef.current.initialize();
       
-      // Auto-start streaming after session creation
-      if (avatarClientRef.current.getSessionId()) {
-        await avatarClientRef.current.setReady();
-      }
+      // Con REPEAT mode, el preview se activa inmediatamente tras obtener sessionId
+      // No necesita setReady() adicional - ya está listo para recibir texto del agente
 
     } catch (error) {
       console.error('Failed to initialize avatar session:', error);
@@ -160,10 +158,10 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
-      // Session should already be ready, just update UI state
+      // Con REPEAT mode, sesión ya está lista con preview activo
       setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
       
-      // Send initial greeting
+      // Enviar saludo inicial usando REPEAT mode
       await avatarClientRef.current.speak("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
     } catch (error) {
       console.error('Failed to start call:', error);
