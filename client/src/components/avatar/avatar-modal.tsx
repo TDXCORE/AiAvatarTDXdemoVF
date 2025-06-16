@@ -201,6 +201,8 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     }
   };
 
+  const ready = Boolean(avatarState.sessionId && avatarState.previewUrl);
+
   const renderAvatarDisplay = () => {
     if (showVideoPlayer && avatarState.sessionId) {
       return (
@@ -211,8 +213,8 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
       );
     }
     
-    // Show the avatar preview if we have a session and preview URL
-    if (avatarState.sessionId && avatarState.previewUrl) {
+    // Show the avatar preview only when ready
+    if (ready) {
       return (
         <AnimatedAvatarDisplay 
           avatarState={avatarState}
@@ -221,7 +223,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
       );
     }
     
-    // Show loading state while initializing
+    // Show loading state while waiting for session and preview
     return (
       <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-900 rounded-lg flex items-center justify-center">
         <div className="text-center">
@@ -234,7 +236,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen && ready} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl h-[80vh] p-0">
         <DialogHeader className="p-6 pb-0 flex flex-row items-center justify-between">
           <div>

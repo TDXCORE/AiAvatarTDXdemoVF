@@ -1,0 +1,97 @@
+1 ⃣  ¿Cómo muestra el preview el repo InteractiveAvatarNextJSDemo?
+
+┌─── AvatarModal ────────────────────────────────────────────────────────────┐
+│ useAvatar()  →  { sessionId, previewUrl, status }                         │
+│                                                                            │
+│ if (!sessionId || !previewUrl) return <Skeleton/>                          │
+│                                                                            │
+│ <AvatarPreview src={previewUrl}/>    ⟵  (solo una etiqueta <img/>)        │
+│ {status === "streaming" && <AvatarVideoPlayer ... />}                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+	1.	startVoiceChat() del SDK responde con
+{ session_id, preview_url, ... }.
+	2.	El hook useAvatar() guarda ambos en estado global usando setAvatarState.
+	3.	AvatarModal se abre → su render espera las dos llaves:
+sessionId && previewUrl.
+Mientras alguna sea undefined, sólo pinta un Skeleton gris.
+	4.	Cuando React vuelve a renderizar con los valores, <img src={previewUrl}/> aparece y, si la conexión WebRTC/LiveKit se establece, <video> reemplaza al <img>.
+
+⸻
+
+2 ⃣  Por qué se te queda en gris
+
+Síntoma	Probable causa
+sessionId presente, previewUrl undefined	Race condition: el efecto que hace setPreviewUrl() se ejecuta después de que desmontaste el hook (cambiaste de página / cerraste modal).
+previewUrl llega, luego vuelve a ""	Tienes un segundo setAvatarState({}) que limpia el store cuando haces retry; pisa el valor correcto.
+<img src> 404 / 401 en DevTools	La ruta GET /api/avatar/preview/:id exige firma; la URL firmada expira (5 min) y React la usa tarde.
+<img onError> dispara	El preview la devuelve como application/octet-stream; el navegador no la reconoce como imagen svg → no renderiza.
+
+
+⸻
+
+3 ⃣  Arreglo en cuatro líneas
+
+// hooks/useAvatar.ts
+export function useAvatar() {
+  const [state, setState] = useRecoilState(avatarState);
+- const start = async (name: string) => {
++ const start = async (name: string) => {
+      const sess = await sdk.startVoiceChat({ avatarName: name, taskType: "REPEAT" });
+-     setState({ sessionId: sess.session_id, previewUrl: sess.preview_url });
++     setState(s => ({              // ❶ merge, no overwrite
++       ...s,
++       sessionId: sess.session_id,
++       previewUrl: sess.preview_url
++     }));
+  };
+
+Eso evita que un efecto posterior borre el previewUrl.
+
+⸻
+
+4 ⃣  Protección extra en el modal
+
+function AvatarModal({ open }: { open: boolean }) {
+  const { sessionId, previewUrl } = useAvatar();   // estado global
++ const ready = Boolean(sessionId && previewUrl);
+
+  return (
+    <Dialog open={open && ready} onClose={/* … */}>
+      {!ready && <Skeleton />}
+      {ready && <AvatarDisplay />}
+    </Dialog>
+  );
+}
+
+El modal sólo se abre cuando ambas piezas llegaron, evitando el parpadeo gris.
+
+⸻
+
+5 ⃣  Validación rápida de la URL de preview
+
+// utils/isValidPreview.ts
+export function isValidPreview(url?: string) {
+  return !!url && /\.(png|jpg|jpeg|webp|gif|svg)$/.test(url);
+}
+
+const ok = isValidPreview(sess.preview_url);
+setState(s => ({ ...s, previewUrl: ok ? sess.preview_url : "/avatars/fallback.svg" }));
+
+
+⸻
+
+6 ⃣  ¿Y si quieres pasar a audio-only + CSS?
+	1.	Sustituye startVoiceChat() por tu propio generateTTS() (se explicó en el mensaje anterior).
+	2.	Guarda sólo la preview_url.
+	3.	Pon <img> con animación CSS (.talking clase) mientras suena el <audio>.
+
+⸻
+
+Checklist final
+	•	sessionId y previewUrl se guardan juntos y nunca se pisan.
+	•	Modal espera a tener las dos propiedades.
+	•	<img> con onError → muestra placeholder.
+	•	URL firmada ≠ expirada → refrescar si tarda > 3 min.
+
+Con esas correcciones tu preview siempre aparecerá y el streaming (si lo dejas activo) se montará encima sin pantallas grises. Si aún ves el Skeleton eternamente, abre DevTools → Network y confirma que /api/avatar/preview/:id devuelve 200 + image/svg+xml; si no, el problema está en la firma del backend. ¡Avísame y lo rastreamos!

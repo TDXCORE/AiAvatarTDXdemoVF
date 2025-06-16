@@ -17,6 +17,10 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
     }
   }, [avatarState.phase]);
 
+  const isValidPreview = (url?: string) => {
+    return !!url && /\.(png|jpg|jpeg|webp|gif|svg)$/.test(url);
+  };
+
   const renderStateOverlay = () => {
     switch (avatarState.phase) {
       case 'initializing':
@@ -80,7 +84,9 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
       {/* Dr. Carlos Mendoza Avatar with HeyGen Validation */}
       <div className="relative w-full h-full">
         <img
-          src={avatarState.previewUrl || '/api/avatar/preview/Dexter_Doctor_Standing2_public'}
+          src={isValidPreview(avatarState.previewUrl) 
+            ? avatarState.previewUrl 
+            : '/api/avatar/preview/Dexter_Doctor_Standing2_public'}
           alt="Dr. Carlos Mendoza"
           className={`w-full h-full object-cover transition-all duration-300 ${
             isAnimating 
