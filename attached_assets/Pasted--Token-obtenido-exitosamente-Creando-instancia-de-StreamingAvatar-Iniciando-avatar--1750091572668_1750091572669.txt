@@ -1,0 +1,52 @@
+✅ Token obtenido exitosamente
+🎭 Creando instancia de StreamingAvatar...
+🎬 Iniciando avatar...
+🎥 Stream ready: 
+CustomEvent {isTrusted: false}
+🎉 StreamingAvatar initialized successfully
+🎬 Iniciando sesión de avatar...
+📹 Video element found: 
+<video data-replit-metadata="client/src/components/avatar/avatar-modal.tsx:236:8" data-component-name="video" class="w-full h-full object-cover" autoplay playsinline></video>
+🚀 Inicializando StreamingAvatar...
+🔄 Avatar state update: 
+Object {phase: "initializing"}
+🔑 Obteniendo token...
+Unknown DataChannel error on lossy 
+Object {room: "6c745126-4acf-11f0-ae96-8259c6cd8036", roomID: "", participant: "client", pID: "PA_xhduzqPaYQ4D", event: RTCErrorEvent}
+
+Unknown DataChannel error on reliable 
+Object {room: "6c745126-4acf-11f0-ae96-8259c6cd8036", roomID: "", participant: "client", pID: "PA_xhduzqPaYQ4D", event: RTCErrorEvent}
+
+🔌 Stream disconnected
+✅ Token obtenido exitosamente
+🔄 Avatar state update: 
+Object {sessionToken: "eyJ0b2tlbiI6ICJiZmQ0YjU4Y2U1NTE0YmI3OTY1YTI3YmYzYzQzZThjOSIsICJ0b2tlbl90eXBlIjogInNhX2Zyb21fcmVndWx…"}
+🎭 Creando instancia de StreamingAvatar...
+🔄 Avatar state update: 
+Object {phase: "connecting"}
+🎬 Iniciando avatar...
+🎥 Stream ready: 
+CustomEvent {isTrusted: false}
+🔄 Avatar state update: 
+Object {phase: "ready", isConnected: true}
+📹 Video playing
+📹 Video loading started
+🎉 StreamingAvatar initialized successfully
+✅ Avatar client initialized successfully
+📹 Video data loaded
+🎤 Enviando respuesta del agente: "¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?"
+🔄 Avatar state update: 
+Object {phase: "speaking"}
+✅ Agent response sent to avatar successfully
+🎤 Avatar started talking: 
+CustomEvent {isTrusted: false}
+🔄 Avatar state update: 
+Object {phase: "speaking"}
+🔇 Avatar stopped talking: 
+CustomEvent {isTrusted: false}
+🔄 Avatar state update: 
+Object {phase: "listening"}
+🛑 Closing StreamingAvatar...
+✅ StreamingAvatar closed successfully
+🔄 Avatar state update: 
+Object {phase: "initializing", isConnected: false, error: null, sessionToken: null}
