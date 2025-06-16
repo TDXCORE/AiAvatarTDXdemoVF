@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { SimpleAvatarState } from "@/lib/avatar-simple-client";
+import { StreamingAvatarState } from "@/lib/streaming-avatar-client";
 
 interface AnimatedAvatarDisplayProps {
-  avatarState: SimpleAvatarState;
+  avatarState: StreamingAvatarState;
   className?: string;
 }
 

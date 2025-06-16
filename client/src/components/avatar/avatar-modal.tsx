@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { SimpleAvatarClient, SimpleAvatarState } from "@/lib/avatar-simple-client";
+import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
 import { AnimatedAvatarDisplay } from "./animated-avatar-display";
 import { AvatarVideoPlayer } from "./avatar-video-player";
 import { useAudioRecorder } from "@/hooks/use-audio-recorder";
@@ -17,11 +17,10 @@ interface AvatarModalProps {
 }
 
 export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: AvatarModalProps) {
-  const [avatarState, setAvatarState] = useState<SimpleAvatarState>({
+  const [avatarState, setAvatarState] = useState<StreamingAvatarState>({
     phase: 'initializing',
     isConnected: false,
-    sessionId: null,
-    previewUrl: null,
+    sessionToken: null,
     error: null,
   });
 
@@ -29,7 +28,8 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
   const [isProcessing, setIsProcessing] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   
-  const avatarClientRef = useRef<SimpleAvatarClient | null>(null);
+  const avatarClientRef = useRef<StreamingAvatarClient | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Audio recording functionality
   const { startRecording, stopRecording, isRecording } = useAudioRecorder({
@@ -56,16 +56,17 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     try {
       setAvatarState(prev => ({ ...prev, phase: 'initializing' }));
 
-      // Initialize Simple Avatar client
-      avatarClientRef.current = new SimpleAvatarClient((newState) => {
+      if (!videoRef.current) {
+        throw new Error('Video element not available');
+      }
+
+      // Initialize StreamingAvatar client
+      avatarClientRef.current = new StreamingAvatarClient((newState) => {
         setAvatarState(prev => ({ ...prev, ...newState }));
       });
 
-      // Create session with repeat mode y activar preview inmediatamente
-      await avatarClientRef.current.initialize();
-      
-      // Con repeat mode, el preview se activa inmediatamente tras obtener sessionId
-      // No necesita setReady() adicional - ya está listo para recibir texto del agente
+      // Initialize with video element
+      await avatarClientRef.current.initialize(videoRef.current);
 
     } catch (error) {
       console.error('Failed to initialize avatar session:', error);
@@ -79,7 +80,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
   };
 
   const processAudioMessage = async (audioBlob: Blob) => {
-    if (!avatarClientRef.current?.getSessionId()) {
+    if (!avatarClientRef.current?.isReady()) {
       console.warn('No active avatar session for audio processing');
       return;
     }
@@ -120,7 +121,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           inputText: transcriptionResult.transcription,
           sessionId: sessionId,
           isAvatarCall: true,
-          avatarSessionId: avatarClientRef.current.getSessionId()
+          avatarSessionId: avatarClientRef.current.getSessionToken()
         }),
       });
 
@@ -137,7 +138,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
         onMessageReceived?.(transcriptionResult.transcription, chatResult.replyText);
         
         // Send to avatar for speech
-        await avatarClientRef.current?.speak(chatResult.replyText);
+        await avatarClientRef.current?.speakAgentResponse(chatResult.replyText);
       } else {
         throw new Error('No response from AI agent');
       }
@@ -158,11 +159,10 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
-      // Con repeat mode, sesión ya está lista con preview activo
       setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
       
-      // Enviar saludo inicial usando repeat mode
-      await avatarClientRef.current.speak("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
+      // Send initial greeting
+      await avatarClientRef.current.speakAgentResponse("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -207,15 +207,53 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     }
   };
 
-  const ready = Boolean(avatarState.sessionId) && avatarState.phase !== 'error';
+  const ready = Boolean(avatarState.sessionToken) && avatarState.phase !== 'error';
 
   const renderAvatarDisplay = () => {
-    // Always show the animated avatar display with streaming
     return (
-      <AnimatedAvatarDisplay 
-        avatarState={avatarState}
-        className="w-full h-full"
-      />
+      <div className="w-full h-full relative">
+        {/* Video element for StreamingAvatar */}
+        <video
+          ref={videoRef}
+          className="w-full h-full object-cover bg-black rounded-lg"
+          autoPlay
+          playsInline
+          muted={false}
+        />
+        
+        {/* State overlays */}
+        {avatarState.phase === 'initializing' && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <div className="text-center text-white">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+              <p className="text-sm">Inicializando Dr. Carlos...</p>
+            </div>
+          </div>
+        )}
+        
+        {avatarState.phase === 'connecting' && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <div className="text-center text-white">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+              <p className="text-sm">Conectando...</p>
+            </div>
+          </div>
+        )}
+        
+        {avatarState.phase === 'speaking' && (
+          <div className="absolute bottom-4 left-4 bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce mr-2"></div>
+            Dr. Carlos está hablando...
+          </div>
+        )}
+        
+        {avatarState.phase === 'listening' && (
+          <div className="absolute bottom-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
+            Escuchando...
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -263,11 +301,11 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
           <div className="p-6 pt-0">
             <div className="flex items-center justify-center space-x-4">
               <Button
-                variant={avatarState.sessionId ? "default" : "secondary"}
+                variant={avatarState.sessionToken ? "default" : "secondary"}
                 onClick={handleStartCall}
-                disabled={!avatarState.sessionId || avatarState.phase === 'error'}
+                disabled={!avatarState.sessionToken || avatarState.phase === 'error'}
               >
-                {avatarState.sessionId ? 'Iniciar Consulta' : 'Conectando...'}
+                {avatarState.sessionToken ? 'Iniciar Consulta' : 'Conectando...'}
               </Button>
               
               <Button
@@ -306,7 +344,7 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
               {avatarState.phase === 'speaking' && "Dr. Carlos está respondiendo..."}
               {avatarState.phase === 'error' && "Error de conexión - Usando modo de respaldo"}
               {isProcessing && "Procesando mensaje..."}
-              {avatarState.sessionId && avatarState.phase !== 'error' && avatarState.phase !== 'initializing' && !isProcessing && "Sistema listo"}
+              {avatarState.sessionToken && avatarState.phase !== 'error' && avatarState.phase !== 'initializing' && !isProcessing && "Sistema listo"}
             </div>
           </div>
         </div>
