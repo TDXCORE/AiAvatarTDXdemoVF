@@ -7,9 +7,11 @@ import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import { useVoiceActivity } from "@/hooks/use-voice-activity";
 import { useAudioProcessor } from "@/hooks/use-audio-processor";
 import { useToast } from "@/hooks/use-toast";
+import { useTranscriptionState } from "@/hooks/use-transcription-state";
 import { ChatMessage } from "@/types/voice";
 import { MessageBubble } from "../message-bubble";
-import { Mic, MicOff, X, Send, ArrowLeft, MessageSquare } from "lucide-react";
+import { ConversationTranscript } from "./conversation-transcript";
+import { Mic, MicOff, X, Send, ArrowLeft, MessageSquare, ScrollText } from "lucide-react";
 
 interface NewAvatarModalProps {
   isOpen: boolean;
@@ -41,6 +43,9 @@ export function NewAvatarModal({
   const avatarClientRef = useRef<StreamingAvatarClient | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Hook de transcripción
+  const transcription = useTranscriptionState();
 
   // Voice Activity Detection
   const vad = useVoiceActivity({
@@ -92,6 +97,15 @@ export function NewAvatarModal({
         isVoice: true,
       };
       setMessages(prev => [...prev, userMessage]);
+      
+      // Agregar a transcripción
+      transcription.addMessage({
+        content: message,
+        speaker: 'user',
+        isVoice: true,
+        timestamp: new Date(),
+      });
+      
       onMessageReceived?.(message, '');
     },
     onAIResponse: async (response) => {
@@ -102,6 +116,14 @@ export function NewAvatarModal({
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Agregar a transcripción
+      transcription.addMessage({
+        content: response,
+        speaker: 'doctor',
+        isVoice: false,
+        timestamp: new Date(),
+      });
 
       // Send response to avatar
       if (avatarClientRef.current?.isReady()) {
@@ -238,6 +260,14 @@ export function NewAvatarModal({
       };
       setMessages(prev => [...prev, userMessage]);
 
+      // Agregar a transcripción
+      transcription.addMessage({
+        content: text,
+        speaker: 'user',
+        isVoice: false,
+        timestamp: new Date(),
+      });
+
       await audioProcessor.processTextMessage(
         text, 
         true,
@@ -356,14 +386,25 @@ export function NewAvatarModal({
               <h1 className="text-lg font-medium">TDX DEMO DOCTOR</h1>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            className="text-white hover:bg-red-500 bg-red-600/20"
-          >
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={transcription.toggle}
+              className={`text-white hover:bg-white/10 ${transcription.isVisible ? 'bg-blue-600/30' : ''}`}
+              title="Mostrar transcripción"
+            >
+              <ScrollText className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onClose}
+              className="text-white hover:bg-red-500 bg-red-600/20"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Timer */}
@@ -511,6 +552,14 @@ export function NewAvatarModal({
             )}
           </div>
         </div>
+
+        {/* Componente de Transcripción */}
+        <ConversationTranscript
+          messages={transcription.messages}
+          isVisible={transcription.isVisible}
+          onToggle={transcription.toggle}
+          className="fixed right-0 top-0 h-full z-50"
+        />
       </DialogContent>
     </Dialog>
   );

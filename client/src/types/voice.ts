@@ -47,6 +47,24 @@ export interface ConversationState {
   error?: string;
 }
 
+export interface TranscriptMessage extends ChatMessage {
+  speaker: 'user' | 'doctor';
+  isTyping?: boolean;
+  confidence?: number;
+  processingTime?: number;
+}
+
+export interface TranscriptState {
+  messages: TranscriptMessage[];
+  isVisible: boolean;
+  autoScroll: boolean;
+  typingIndicator: {
+    isActive: boolean;
+    speaker: 'user' | 'doctor';
+    text: string;
+  };
+}
+
 export interface VoiceSettings {
   vadSensitivity: number;
   language: string;
