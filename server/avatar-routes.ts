@@ -9,6 +9,11 @@ export function addAvatarRoutes(app: Express) {
   app.post("/api/avatar/token", async (req, res) => {
     try {
       console.log('🔑 Creating HeyGen token for SDK...');
+      
+      // Force cleanup before creating new token
+      console.log('🧹 Cleaning up existing sessions first...');
+      await heygenService.forceCleanupAllSessions();
+      
       const token = await heygenService.createHeygenToken();
       
       if (!token) {
@@ -22,9 +27,16 @@ export function addAvatarRoutes(app: Express) {
       });
     } catch (error) {
       console.error('❌ Avatar token creation error:', error);
+      
+      // Enhanced error response for concurrent limits
+      let message = "Failed to create avatar token";
+      if (error instanceof Error && error.message.includes('10007')) {
+        message = "Session limit reached. Please wait a moment and try again.";
+      }
+      
       res.status(500).json({ 
         success: false,
-        message: "Failed to create avatar token",
+        message: message,
         error: error instanceof Error ? error.message : "Unknown error"
       });
     }

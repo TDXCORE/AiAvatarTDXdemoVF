@@ -74,9 +74,18 @@ export class StreamingAvatarClient {
         });
       }
       
+      // Check for concurrent limit error
+      let errorMessage = error instanceof Error ? error.message : 'Initialization failed';
+      if (error && typeof error === 'object' && (error as any).responseText) {
+        const responseText = (error as any).responseText;
+        if (responseText.includes('10007') || responseText.includes('Concurrent limit reached')) {
+          errorMessage = 'Concurrent session limit reached. Please wait a moment and try again.';
+        }
+      }
+      
       this.onStateChange?.({ 
         phase: 'error', 
-        error: error instanceof Error ? error.message : 'Initialization failed',
+        error: errorMessage,
         isConnected: false
       });
       throw error;

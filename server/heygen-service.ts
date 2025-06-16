@@ -27,37 +27,64 @@ export class HeyGenService {
   }
 
   async createHeygenToken(): Promise<string> {
-    try {
-      console.log('🔑 Requesting token from HeyGen API...');
-      
-      const response = await fetch(`${this.streamingUrl}.create_token`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+    // First attempt to cleanup any existing sessions
+    await this.forceCleanupAllSessions();
+    
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount < maxRetries) {
+      try {
+        console.log('🔑 Requesting token from HeyGen API...');
+        
+        const response = await fetch(`${this.streamingUrl}.create_token`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          
+          // Check for concurrent limit error
+          if (response.status === 400 && errorText.includes('10007')) {
+            console.log(`🧹 Concurrent limit reached, cleaning up sessions (attempt ${retryCount + 1}/${maxRetries})`);
+            await this.forceCleanupAllSessions();
+            
+            if (retryCount < maxRetries - 1) {
+              retryCount++;
+              await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+              continue;
+            }
+          }
+          
+          console.error(`❌ Token creation failed: ${response.status} - ${errorText}`);
+          throw new Error(`Failed to create token: ${response.status} - ${errorText}`);
         }
-      });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ Token creation failed: ${response.status} - ${errorText}`);
-        throw new Error(`Failed to create token: ${response.status} - ${errorText}`);
+        const data = await response.json() as { data?: { token: string }, token?: string };
+        const token = data.data?.token || data.token;
+        
+        if (!token) {
+          console.error('❌ No token in response:', data);
+          throw new Error('Token not found in response');
+        }
+
+        console.log('✅ Token created successfully');
+        return token;
+      } catch (error) {
+        if (retryCount === maxRetries - 1) {
+          console.error('❌ Error creating HeyGen token after retries:', error);
+          throw error;
+        }
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-
-      const data = await response.json() as { data?: { token: string }, token?: string };
-      const token = data.data?.token || data.token;
-      
-      if (!token) {
-        console.error('❌ No token in response:', data);
-        throw new Error('Token not found in response');
-      }
-
-      console.log('✅ Token created successfully');
-      return token;
-    } catch (error) {
-      console.error('❌ Error creating HeyGen token:', error);
-      throw error;
     }
+    
+    throw new Error('Failed to create token after all retries');
   }
 
   async sendTextToSpeech(text: string, sessionId: string): Promise<void> {
@@ -104,6 +131,69 @@ export class HeyGenService {
       console.log('HeyGen session closed with token:', token);
     } catch (error) {
       console.warn('Failed to close HeyGen session:', error);
+    }
+  }
+
+  async forceCleanupAllSessions(): Promise<void> {
+    try {
+      console.log('🧹 Force cleaning up all HeyGen sessions...');
+      
+      // Try to close session using list endpoint
+      const listResponse = await fetch(`${this.streamingUrl}.list`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        }
+      });
+
+      if (listResponse.ok) {
+        const listData = await listResponse.json() as { data?: { sessions?: Array<{ session_id: string }> } };
+        const sessions = listData.data?.sessions || [];
+        
+        console.log(`Found ${sessions.length} active sessions to cleanup`);
+        
+        for (const session of sessions) {
+          try {
+            await this.closeSessionById(session.session_id);
+          } catch (error) {
+            // Continue with next session
+          }
+        }
+      }
+
+      // Also try common session cleanup patterns
+      const commonSessionIds = [
+        'fe0fc279-4a36-11f0-ba0d-5e3b6a3b504d',
+        '91aca4d4-4a3a-11f0-b3da-5e0a6fe58bfa',
+        '108e6f3a-4a3a-11f0-b3da-5e0a6fe58bfa'
+      ];
+
+      for (const sessionId of commonSessionIds) {
+        try {
+          await this.closeSessionById(sessionId);
+        } catch (error) {
+          // Continue with next session
+        }
+      }
+      
+      console.log('✅ Session cleanup completed');
+    } catch (error) {
+      console.warn('⚠️ Session cleanup had issues:', error);
+    }
+  }
+
+  async closeSessionById(sessionId: string): Promise<void> {
+    try {
+      await fetch(`${this.streamingUrl}.stop`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ session_id: sessionId })
+      });
+    } catch (error) {
+      // Ignore errors for sessions that don't exist
     }
   }
 
