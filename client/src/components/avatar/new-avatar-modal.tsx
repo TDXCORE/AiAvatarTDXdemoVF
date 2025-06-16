@@ -329,8 +329,8 @@ export function NewAvatarModal({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-full max-h-full h-screen w-screen p-0 m-0 flex flex-col bg-black">
-        <DialogTitle className="sr-only">Chat with Judy - L&D Compliance Training</DialogTitle>
-        <DialogDescription className="sr-only">Interactive avatar session for learning and development compliance training with voice and text communication</DialogDescription>
+        <DialogTitle className="sr-only">TDX DEMO DOCTOR</DialogTitle>
+        <DialogDescription className="sr-only">TDX DEMO DOCTOR</DialogDescription>
         
         {/* Header */}
         <div className="bg-black text-white p-4 flex items-center justify-between relative z-10">
@@ -344,7 +344,7 @@ export function NewAvatarModal({
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-lg font-medium">Chat with Judy - L&D Compliance Training</h1>
+              <h1 className="text-lg font-medium">TDX DEMO DOCTOR</h1>
             </div>
           </div>
           <Button
@@ -390,8 +390,8 @@ export function NewAvatarModal({
                 <div className="w-32 h-32 mx-auto mb-4 bg-blue-600 rounded-full flex items-center justify-center">
                   <span className="text-5xl">👩‍💼</span>
                 </div>
-                <h3 className="text-2xl font-medium mb-2">Judy</h3>
-                <p className="text-lg opacity-80 mb-4">L&D Compliance Training</p>
+                <h3 className="text-2xl font-medium mb-2">DOCTOR</h3>
+                <p className="text-lg opacity-80 mb-4">TDX DEMO DOCTOR</p>
                 {avatarState.phase === 'initializing' && (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-3"></div>
@@ -406,7 +406,7 @@ export function NewAvatarModal({
           {avatarState.phase === 'speaking' && (
             <div className="absolute bottom-20 left-4 bg-blue-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
               <div className="w-3 h-3 bg-white rounded-full animate-bounce mr-2"></div>
-              Judy is speaking...
+              Doctor is speaking...
             </div>
           )}
 
@@ -481,11 +481,11 @@ export function NewAvatarModal({
 
           {/* Status */}
           <div className="text-center mt-3 text-sm text-white/70">
-            {avatarState.phase === 'initializing' && "Connecting to Judy..."}
+            {avatarState.phase === 'initializing' && "Connecting to Doctor..."}
             {avatarState.phase === 'ready' && !isCallActive && "Ready to start conversation"}
             {avatarState.phase === 'ready' && isCallActive && "Press and hold microphone to speak"}
             {avatarState.phase === 'listening' && "You can speak now"}
-            {avatarState.phase === 'speaking' && "Judy is responding..."}
+            {avatarState.phase === 'speaking' && "Doctor is responding..."}
             {avatarState.phase === 'error' && "Connection error - Please try again"}
             {audioProcessor.isProcessing && "Processing message..."}
           </div>
