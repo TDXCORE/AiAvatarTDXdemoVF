@@ -54,44 +54,34 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
   
-  // Create new avatar streaming session with HeyGen priority
+  // Create new avatar streaming session - FORZAR HEYGEN REAL
   app.post("/api/avatar/session", async (req, res) => {
     try {
-      const { avatarId, forceHeyGen } = req.body;
+      const { avatarId } = req.body;
       
-      // Try HeyGen first if forced or by default
-      if (forceHeyGen !== false) {
-        try {
-          const heygenData = await heygenService.createStreamingSession(avatarId);
-          console.log('Real HeyGen session created:', heygenData.sessionId);
-          res.json({
-            success: true,
-            data: {
-              sessionId: heygenData.sessionId,
-              previewUrl: heygenData.previewUrl,
-              streamUrl: heygenData.streamUrl,
-              isHeyGen: true
-            }
-          });
-          return;
-        } catch (heygenError) {
-          console.warn('HeyGen session failed, using fallback:', heygenError);
-        }
-      }
+      // SOLO HEYGEN - NO FALLBACK
+      console.log('🎯 FORZANDO CREACIÓN DE SESIÓN HEYGEN REAL...');
       
-      // Use fallback service only if HeyGen fails
-      const fallbackData = await fallbackService.createSession(avatarId);
-      console.log('Using fallback avatar service with authentic preview data');
+      const heygenData = await heygenService.createStreamingSession(avatarId);
+      console.log('✅ SESIÓN HEYGEN REAL CREADA:', heygenData.sessionId);
+      
       res.json({
         success: true,
-        data: fallbackData
+        data: {
+          sessionId: heygenData.sessionId,
+          previewUrl: heygenData.previewUrl,
+          streamUrl: heygenData.streamUrl,
+          isHeyGen: true,
+          isReal: true
+        }
       });
     } catch (error) {
-      console.error('Avatar session creation error:', error);
+      console.error('❌ FALLÓ CREACIÓN DE SESIÓN HEYGEN:', error);
       res.status(500).json({ 
         success: false,
-        message: "Failed to create avatar session",
-        error: error instanceof Error ? error.message : "Unknown error"
+        message: "Failed to create HeyGen session - NO FALLBACK ALLOWED",
+        error: error instanceof Error ? error.message : "Unknown error",
+        requiresReset: true
       });
     }
   });

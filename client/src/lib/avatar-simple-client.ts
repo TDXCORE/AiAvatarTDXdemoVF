@@ -214,4 +214,48 @@ export class SimpleAvatarClient {
   updateState(newState: Partial<SimpleAvatarState>) {
     this.onStateChange?.(newState);
   }
+
+  async createSession(avatarId: string = 'josh_lite3_20230714'): Promise<void> {
+    try {
+      console.log('🎯 CREANDO SESIÓN HEYGEN REAL (NO FALLBACK)...');
+
+      const response = await fetch('/api/avatar/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarId })
+      });
+
+      const result = await response.json();
+
+      if (!result.success) {
+        if (result.requiresReset) {
+          throw new Error('SISTEMA REQUIERE RESET - Ejecuta el script de reset completo');
+        }
+        throw new Error(result.message || 'Failed to create HeyGen session');
+      }
+
+      if (!result.data.isHeyGen || !result.data.isReal) {
+        throw new Error('SOLO SE PERMITEN SESIONES HEYGEN REALES - NO FALLBACK');
+      }
+
+      this.sessionId = result.data.sessionId;
+      this.isHeyGenSession = true;
+
+      console.log(`✅ SESIÓN HEYGEN REAL CREADA: ${this.sessionId}`);
+
+      this.onStateChange?.({
+        sessionId: this.sessionId,
+        phase: 'ready',
+        isHeyGen: true,
+        isReal: true
+      });
+    } catch (error) {
+      console.error('❌ FALLÓ CREACIÓN DE SESIÓN HEYGEN:', error);
+      this.onStateChange?.({
+        phase: 'error',
+        error: error instanceof Error ? error.message : 'HeyGen session creation failed'
+      });
+      throw error;
+    }
+  }
 }
