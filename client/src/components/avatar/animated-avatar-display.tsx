@@ -65,7 +65,7 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
     }
   };
 
-  // Always try to show the HeyGen streaming interface if we have any session
+  // Show HeyGen streaming interface only for real HeyGen sessions
   if (avatarState.sessionId) {
     console.log('Displaying avatar for session:', avatarState.sessionId);
     
@@ -76,7 +76,7 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
       <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
         {isHeyGenSession ? (
           /* Real HeyGen Streaming Avatar */
-          <div className="relative w-full h-full">
+          <div className="relative w-full h-full bg-black">
             <iframe
               src={`https://app.heygen.com/embed/v1/${avatarState.sessionId}`}
               className={`w-full h-full border-0 transition-all duration-300 ${
@@ -85,7 +85,8 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
                   : 'scale-100 brightness-100'
               }`}
               title="Dr. Carlos Mendoza - Avatar en Streaming"
-              allow="camera; microphone; autoplay"
+              allow="camera; microphone; autoplay; fullscreen"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
               onLoad={() => {
                 console.log('HeyGen streaming avatar loaded successfully');
               }}
@@ -98,6 +99,11 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
             {isAnimating && (
               <div className="absolute inset-0 bg-blue-400/10 animate-pulse pointer-events-none"></div>
             )}
+            
+            {/* HeyGen Session Indicator */}
+            <div className="absolute top-4 left-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs">
+              ✓ HeyGen Live
+            </div>
           </div>
         ) : (
           /* Fallback static avatar with premium styling */

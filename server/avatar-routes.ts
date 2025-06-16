@@ -54,12 +54,32 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
   
-  // Create new avatar streaming session with HeyGen fallback
+  // Create new avatar streaming session with HeyGen priority
   app.post("/api/avatar/session", async (req, res) => {
     try {
-      const { avatarId } = req.body;
+      const { avatarId, forceHeyGen } = req.body;
       
-      // Use fallback service with authentic HeyGen preview URL
+      // Try HeyGen first if forced or by default
+      if (forceHeyGen !== false) {
+        try {
+          const heygenData = await heygenService.createStreamingSession(avatarId);
+          console.log('Real HeyGen session created:', heygenData.sessionId);
+          res.json({
+            success: true,
+            data: {
+              sessionId: heygenData.sessionId,
+              previewUrl: heygenData.previewUrl,
+              streamUrl: heygenData.streamUrl,
+              isHeyGen: true
+            }
+          });
+          return;
+        } catch (heygenError) {
+          console.warn('HeyGen session failed, using fallback:', heygenError);
+        }
+      }
+      
+      // Use fallback service only if HeyGen fails
       const fallbackData = await fallbackService.createSession(avatarId);
       console.log('Using fallback avatar service with authentic preview data');
       res.json({

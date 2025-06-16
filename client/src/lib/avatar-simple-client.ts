@@ -31,13 +31,13 @@ export class SimpleAvatarClient {
         this.token = tokenResult.token;
       }
 
-      // 2. Create session with REPEAT mode
+      // 2. Create real HeyGen session (not fallback)
       const response = await fetch('/api/avatar/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           avatarId: 'Dexter_Doctor_Standing2_public',
-          preferHeyGen: true 
+          forceHeyGen: true // Force real HeyGen instead of fallback
         })
       });
 
@@ -54,19 +54,22 @@ export class SimpleAvatarClient {
       this.sessionId = result.data.sessionId;
       this.isHeyGenSession = !this.sessionId.startsWith('fallback_');
 
+      console.log(`Avatar session created: ${this.sessionId} (HeyGen: ${this.isHeyGenSession})`);
+
+      // Only proceed if we have a real HeyGen session
+      if (!this.isHeyGenSession) {
+        throw new Error('Failed to create real HeyGen session');
+      }
+
       this.onStateChange?.({
-        phase: 'preview',
+        phase: 'ready',
         sessionId: this.sessionId,
         previewUrl: result.data.previewUrl,
         isConnected: false
       });
 
-      console.log(`Avatar session created: ${this.sessionId} (HeyGen: ${this.isHeyGenSession})`);
-
-      // If we got a real HeyGen session, immediately start it
-      if (this.isHeyGenSession) {
-        await this.startHeyGenSession();
-      }
+      // Start the HeyGen streaming session immediately
+      await this.startHeyGenSession();
 
     } catch (error) {
       console.error('Session initialization failed:', error);
