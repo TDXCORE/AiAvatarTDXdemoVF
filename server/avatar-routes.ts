@@ -197,16 +197,16 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
 
-  // Get avatar preview - attempt to get real HeyGen preview
+  // Get avatar preview image - serve direct SVG for reliable display
   app.get("/api/avatar/preview/:avatarId", async (req, res) => {
     try {
       const { avatarId } = req.params;
       
-      // Try to get authentic HeyGen preview data
+      // Validate avatar with HeyGen API first
+      let isValidAvatar = false;
       try {
         const apiKey = process.env.HEYGEN_API_KEY;
         if (apiKey) {
-          // Test if we can create a session with this avatar to validate it exists
           const testResponse = await fetch('https://api.heygen.com/v1/streaming.new', {
             method: 'POST',
             headers: {
@@ -222,6 +222,7 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
           if (testResponse.ok) {
             const data = await testResponse.json() as any;
             console.log(`Authentic HeyGen avatar ${avatarId} validated`);
+            isValidAvatar = true;
             
             // Close test session immediately
             if (data.data?.session_id) {
@@ -236,54 +237,99 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
                 }),
               }).catch(() => {});
             }
-            
-            // Return a professional video preview placeholder that indicates authentic avatar
-            const videoHtml = `
-              <video width="400" height="500" autoplay muted loop style="object-fit: cover; border-radius: 8px;">
-                <source src="data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAABuhtZGF0" type="video/mp4">
-                <div style="width: 400px; height: 500px; background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); display: flex; align-items: center; justify-content: center; color: white; font-family: Arial, sans-serif; text-align: center;">
-                  <div>
-                    <div style="font-size: 48px; margin-bottom: 20px;">👨‍⚕️</div>
-                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">Dr. Carlos Mendoza</div>
-                    <div style="font-size: 16px; opacity: 0.8;">Psicólogo Clínico</div>
-                    <div style="font-size: 12px; margin-top: 20px; opacity: 0.6;">Avatar ID: ${avatarId}</div>
-                  </div>
-                </div>
-              </video>
-            `;
-            
-            res.set({
-              'Content-Type': 'text/html',
-              'Cache-Control': 'public, max-age=300'
-            });
-            res.send(videoHtml);
-            return;
           }
         }
       } catch (error) {
-        console.log(`HeyGen API test for ${avatarId}:`, error);
+        console.log(`HeyGen API validation for ${avatarId}:`, error);
       }
       
-      // Fallback: Return a professional avatar image representation
-      const professionalAvatar = `
-        <div style="width: 400px; height: 500px; background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; font-family: Arial, sans-serif; text-align: center; border-radius: 8px;">
-          <div style="background: rgba(255,255,255,0.1); padding: 40px; border-radius: 50%; margin-bottom: 30px;">
-            <div style="font-size: 80px;">👨‍⚕️</div>
-          </div>
-          <div style="font-size: 28px; font-weight: bold; margin-bottom: 10px;">Dr. Carlos Mendoza</div>
-          <div style="font-size: 18px; opacity: 0.9; margin-bottom: 5px;">Psicólogo Clínico Especializado</div>
-          <div style="font-size: 14px; opacity: 0.7; margin-bottom: 20px;">Consultas Virtuales de Salud Mental</div>
-          <div style="background: rgba(255,255,255,0.2); padding: 10px 20px; border-radius: 20px; font-size: 12px;">
-            Avatar: ${avatarId}
-          </div>
-        </div>
+      // Return professional SVG avatar that always displays
+      const avatarSvg = `
+        <svg width="400" height="500" viewBox="0 0 400 500" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#1D4ED8;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="suit" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style="stop-color:#1F2937;stop-opacity:1" />
+              <stop offset="100%" style="stop-color:#374151;stop-opacity:1" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge> 
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          
+          <!-- Background with validation status -->
+          <rect width="400" height="500" fill="url(#bg)"/>
+          
+          <!-- Professional suit body -->
+          <path d="M 120 280 Q 200 250 280 280 L 280 500 L 120 500 Z" fill="url(#suit)"/>
+          
+          <!-- White shirt -->
+          <path d="M 160 280 Q 200 260 240 280 L 240 420 L 160 420 Z" fill="#FFFFFF"/>
+          
+          <!-- Tie -->
+          <rect x="190" y="280" width="20" height="140" fill="#DC2626"/>
+          
+          <!-- Face with professional appearance -->
+          <circle cx="200" cy="180" r="50" fill="#F3E8D0"/>
+          
+          <!-- Hair -->
+          <path d="M 150 160 Q 200 130 250 160 Q 240 140 200 140 Q 160 140 150 160" fill="#374151"/>
+          
+          <!-- Glasses for professional look -->
+          <rect x="175" y="165" width="50" height="25" fill="none" stroke="#1F2937" stroke-width="2" rx="5"/>
+          <line x1="200" y1="170" x2="200" y2="175" stroke="#1F2937" stroke-width="2"/>
+          
+          <!-- Eyes -->
+          <circle cx="185" cy="175" r="3" fill="#1F2937"/>
+          <circle cx="215" cy="175" r="3" fill="#1F2937"/>
+          
+          <!-- Nose -->
+          <path d="M 198 185 L 202 185 L 200 190 Z" fill="#E5B684"/>
+          
+          <!-- Professional smile -->
+          <path d="M 190 200 Q 200 205 210 200" stroke="#1F2937" stroke-width="2" fill="none"/>
+          
+          <!-- Medical badge -->
+          <rect x="250" y="320" width="40" height="25" fill="#FFFFFF" stroke="#1F2937" stroke-width="1" rx="3"/>
+          <text x="270" y="335" font-family="Arial, sans-serif" font-size="8" fill="#1F2937" text-anchor="middle">MD</text>
+          
+          <!-- Stethoscope -->
+          <path d="M 170 300 Q 180 290 190 300" stroke="#374151" stroke-width="3" fill="none"/>
+          <circle cx="170" cy="300" r="8" fill="#374151"/>
+          
+          <!-- Professional info panel -->
+          <rect x="20" y="400" width="360" height="80" fill="rgba(0,0,0,0.8)" rx="10"/>
+          <text x="200" y="425" font-family="Arial, sans-serif" font-size="22" fill="#FFFFFF" text-anchor="middle" font-weight="bold">Dr. Carlos Mendoza</text>
+          <text x="200" y="445" font-family="Arial, sans-serif" font-size="14" fill="#E5E7EB" text-anchor="middle">Psicólogo Clínico Especializado</text>
+          <text x="200" y="460" font-family="Arial, sans-serif" font-size="12" fill="#9CA3AF" text-anchor="middle">Consultas de Salud Mental con IA</text>
+          
+          <!-- Validation badge -->
+          ${isValidAvatar ? `
+            <rect x="280" y="40" width="100" height="30" fill="rgba(34,197,94,0.9)" rx="15"/>
+            <circle cx="295" cy="55" r="3" fill="#FFFFFF"/>
+            <text x="340" y="58" font-family="Arial, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">HeyGen ✓</text>
+          ` : `
+            <rect x="280" y="40" width="100" height="30" fill="rgba(239,68,68,0.9)" rx="15"/>
+            <text x="330" y="58" font-family="Arial, sans-serif" font-size="10" fill="#FFFFFF" text-anchor="middle">Validating...</text>
+          `}
+          
+          <!-- Avatar ID -->
+          <text x="200" y="475" font-family="Arial, sans-serif" font-size="10" fill="#6B7280" text-anchor="middle">ID: ${avatarId}</text>
+        </svg>
       `;
       
       res.set({
-        'Content-Type': 'text/html',
+        'Content-Type': 'image/svg+xml',
         'Cache-Control': 'public, max-age=3600'
       });
-      res.send(professionalAvatar);
+      res.send(avatarSvg);
       
     } catch (error) {
       console.error('Avatar preview error:', error);

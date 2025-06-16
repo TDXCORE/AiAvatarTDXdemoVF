@@ -77,21 +77,23 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
 
   return (
     <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
-      {/* Main avatar with authentic HeyGen preview */}
+      {/* Dr. Carlos Mendoza Avatar with HeyGen Validation */}
       <div className="relative w-full h-full">
-        <iframe
-          src={avatarState.previewUrl}
-          className={`w-full h-full border-0 transition-all duration-300 ${
+        <img
+          src={avatarState.previewUrl || '/api/avatar/preview/Dexter_Doctor_Standing2_public'}
+          alt="Dr. Carlos Mendoza"
+          className={`w-full h-full object-cover transition-all duration-300 ${
             isAnimating 
-              ? 'scale-105 brightness-110' 
+              ? 'scale-105 brightness-110 animate-pulse' 
               : 'scale-100 brightness-100'
           }`}
-          title="Dr. Carlos Mendoza - HeyGen Avatar"
           onLoad={() => {
-            console.log('Authentic HeyGen avatar preview loaded for Dr. Carlos Mendoza');
+            console.log('Dr. Carlos Mendoza avatar loaded successfully');
           }}
-          onError={() => {
-            console.warn('HeyGen avatar preview failed to load');
+          onError={(e) => {
+            console.warn('Avatar preview failed, using fallback');
+            const target = e.target as HTMLImageElement;
+            target.src = '/api/avatar/preview/Dexter_Doctor_Standing2_public';
           }}
         />
         
