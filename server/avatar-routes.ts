@@ -65,6 +65,17 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
       const heygenData = await heygenService.createStreamingSession(avatarId);
       console.log('✅ SESIÓN HEYGEN REAL CREADA:', heygenData.sessionId);
       
+      // INICIAR SESIÓN AUTOMÁTICAMENTE para que esté lista para TTS
+      try {
+        await heygenService.startSession(heygenData.sessionId);
+        console.log('🚀 SESIÓN HEYGEN INICIADA Y LISTA PARA TTS:', heygenData.sessionId);
+      } catch (startError) {
+        console.error('❌ ERROR AL INICIAR SESIÓN:', startError);
+        // Limpiar la sesión fallida
+        await heygenService.closeSession(heygenData.sessionId);
+        throw new Error('Failed to start HeyGen session - session cleaned up');
+      }
+      
       res.json({
         success: true,
         data: {
@@ -72,7 +83,8 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
           previewUrl: heygenData.previewUrl,
           streamUrl: heygenData.streamUrl,
           isHeyGen: true,
-          isReal: true
+          isReal: true,
+          isStarted: true // Indicar que la sesión ya está iniciada
         }
       });
     } catch (error) {

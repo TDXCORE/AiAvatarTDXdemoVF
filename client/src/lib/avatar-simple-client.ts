@@ -258,4 +258,64 @@ export class SimpleAvatarClient {
       throw error;
     }
   }
+
+  async sendMessage(text: string): Promise<void> {
+    if (!this.sessionId) {
+      throw new Error('No active session');
+    }
+
+    this.onStateChange?.({ phase: 'speaking' });
+
+    try {
+      const response = await fetch('/api/avatar/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: this.sessionId,
+          text: text
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to send message to avatar');
+      }
+
+      console.log('✅ MENSAJE ENVIADO AL AVATAR HEYGEN:', text);
+
+      // Simular tiempo de habla
+      const estimatedSpeechTime = Math.max(2000, text.length * 80);
+      setTimeout(() => {
+        this.onStateChange?.({ phase: 'listening' });
+      }, estimatedSpeechTime);
+
+    } catch (error) {
+      console.error('❌ ERROR ENVIANDO MENSAJE:', error);
+      this.onStateChange?.({
+        phase: 'error',
+        error: error instanceof Error ? error.message : 'Message send failed'
+      });
+      throw error;
+    }
+  }
+
+  async sendGreeting(): Promise<void> {
+    if (!this.sessionId) {
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/avatar/greet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: this.sessionId })
+      });
+
+      if (response.ok) {
+        console.log('✅ SALUDO ENVIADO AL AVATAR');
+      }
+    } catch (error) {
+      console.warn('Falló el saludo automático:', error);
+    }
+  }
 }
