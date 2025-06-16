@@ -1,4 +1,3 @@
-
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 
@@ -6,7 +5,7 @@ dotenv.config();
 
 async function checkQuotaStatus() {
   const apiKey = process.env.HEYGEN_API_KEY;
-  
+
   if (!apiKey) {
     console.error('❌ HEYGEN_API_KEY not found in environment');
     return;
@@ -28,7 +27,7 @@ async function checkQuotaStatus() {
     });
 
     const tokenData = await tokenResponse.json();
-    
+
     if (tokenResponse.ok) {
       console.log('✅ Token creation SUCCESS');
       console.log('📄 Response:', JSON.stringify(tokenData, null, 2));
@@ -36,7 +35,7 @@ async function checkQuotaStatus() {
       console.log('❌ Token creation FAILED');
       console.log('📄 Status:', tokenResponse.status);
       console.log('📄 Response:', JSON.stringify(tokenData, null, 2));
-      
+
       if (tokenData.code === 'quota_not_enough') {
         console.log('\n💡 QUOTA ISSUE DETECTED:');
         console.log('- Your API key is valid but you have insufficient quota');
@@ -56,7 +55,7 @@ async function checkQuotaStatus() {
     });
 
     const avatarData = await avatarResponse.json();
-    
+
     if (avatarResponse.ok) {
       console.log('✅ Avatar list access SUCCESS');
       console.log('📄 Available avatars:', avatarData.data?.avatars?.length || 0);
@@ -76,7 +75,7 @@ async function checkQuotaStatus() {
       },
       body: JSON.stringify({
         quality: 'low',
-        avatar_id: 'josh_lite3_20230714',
+        avatar_id: 'Graham_Chair_Sitting_public',
         voice: {
           voice_id: 'b7d50908a434433ba7ed7b75d2f5ab72'
         }
@@ -84,11 +83,11 @@ async function checkQuotaStatus() {
     });
 
     const streamingData = await streamingResponse.json();
-    
+
     if (streamingResponse.ok) {
       console.log('✅ Streaming session creation SUCCESS');
       console.log('📄 Session ID:', streamingData.data?.session_id);
-      
+
       // Close the session immediately
       if (streamingData.data?.session_id) {
         await fetch(`https://api.heygen.com/v1/streaming.stop`, {
@@ -107,7 +106,7 @@ async function checkQuotaStatus() {
       console.log('❌ Streaming session creation FAILED');
       console.log('📄 Status:', streamingResponse.status);
       console.log('📄 Response:', JSON.stringify(streamingData, null, 2));
-      
+
       if (streamingData.code === 'quota_not_enough') {
         console.log('\n🎯 ROOT CAUSE IDENTIFIED:');
         console.log('- Your account has reached the streaming quota limit');

@@ -29,14 +29,14 @@ export class HeyGenService {
   async createHeygenToken(): Promise<string> {
     // First attempt to cleanup any existing sessions
     await this.forceCleanupAllSessions();
-    
+
     let retryCount = 0;
     const maxRetries = 3;
-    
+
     while (retryCount < maxRetries) {
       try {
         console.log('🔑 Requesting token from HeyGen API...');
-        
+
         const response = await fetch(`${this.streamingUrl}.create_token`, {
           method: 'POST',
           headers: {
@@ -47,26 +47,26 @@ export class HeyGenService {
 
         if (!response.ok) {
           const errorText = await response.text();
-          
+
           // Check for concurrent limit error
           if (response.status === 400 && errorText.includes('10007')) {
             console.log(`🧹 Concurrent limit reached, cleaning up sessions (attempt ${retryCount + 1}/${maxRetries})`);
             await this.forceCleanupAllSessions();
-            
+
             if (retryCount < maxRetries - 1) {
               retryCount++;
               await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
               continue;
             }
           }
-          
+
           console.error(`❌ Token creation failed: ${response.status} - ${errorText}`);
           throw new Error(`Failed to create token: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json() as { data?: { token: string }, token?: string };
         const token = data.data?.token || data.token;
-        
+
         if (!token) {
           console.error('❌ No token in response:', data);
           throw new Error('Token not found in response');
@@ -83,7 +83,7 @@ export class HeyGenService {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
-    
+
     throw new Error('Failed to create token after all retries');
   }
 
@@ -137,7 +137,7 @@ export class HeyGenService {
   async forceCleanupAllSessions(): Promise<void> {
     try {
       console.log('🧹 Force cleaning up all HeyGen sessions...');
-      
+
       // Try to close session using list endpoint
       const listResponse = await fetch(`${this.streamingUrl}.list`, {
         method: 'GET',
@@ -149,9 +149,9 @@ export class HeyGenService {
       if (listResponse.ok) {
         const listData = await listResponse.json() as { data?: { sessions?: Array<{ session_id: string }> } };
         const sessions = listData.data?.sessions || [];
-        
+
         console.log(`Found ${sessions.length} active sessions to cleanup`);
-        
+
         for (const session of sessions) {
           try {
             await this.closeSessionById(session.session_id);
@@ -175,7 +175,7 @@ export class HeyGenService {
           // Continue with next session
         }
       }
-      
+
       console.log('✅ Session cleanup completed');
     } catch (error) {
       console.warn('⚠️ Session cleanup had issues:', error);
@@ -212,14 +212,14 @@ export class HeyGenService {
 
       if (!response.ok) {
         console.warn('Could not fetch avatar list, using default');
-        return ['Dexter_Doctor_Standing2_public'];
+        return ['Graham_Chair_Sitting_public', 'josh_lite3_20230714', 'Dexter_Doctor_Standing2_public'];
       }
 
       const data = await response.json() as { data: { avatars: Array<{ avatar_id: string }> } };
       return data.data.avatars.map(avatar => avatar.avatar_id);
     } catch (error) {
       console.warn('Error fetching avatars:', error);
-      return ['Dexter_Doctor_Standing2_public'];
+      return ['Graham_Chair_Sitting_public', 'josh_lite3_20230714', 'Dexter_Doctor_Standing2_public'];
     }
   }
 }
