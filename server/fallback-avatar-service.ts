@@ -11,10 +11,10 @@ export class FallbackAvatarService {
 
   async createSession(avatarId: string = 'Dexter_Doctor_Standing2_public'): Promise<FallbackAvatarSessionData> {
     const sessionId = `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     // Use HeyGen API to get authentic avatar preview
     const previewUrl = await this.getAuthenticAvatarPreview(avatarId);
-    
+
     // Registrar sesión activa
     this.activeSessions.set(sessionId, {
       id: sessionId,
@@ -22,7 +22,7 @@ export class FallbackAvatarService {
     });
 
     console.log(`Fallback avatar session created: ${sessionId} with authentic preview`);
-    
+
     return {
       sessionId,
       previewUrl,
@@ -54,7 +54,7 @@ export class FallbackAvatarService {
       if (response.ok) {
         const data = await response.json() as any;
         console.log(`HeyGen avatar data retrieved for ${avatarId}`);
-        
+
         // Close the test session immediately
         if (data.data?.session_id) {
           await fetch('https://api.heygen.com/v1/streaming.stop', {
@@ -68,10 +68,10 @@ export class FallbackAvatarService {
             }),
           }).catch(() => {}); // Ignore close errors
         }
-        
+
         return `/api/avatar/preview/${avatarId}`;
       }
-      
+
       throw new Error(`HeyGen API response: ${response.status}`);
     } catch (error) {
       console.log(`Testing HeyGen access for ${avatarId}:`, error);
@@ -86,7 +86,7 @@ export class FallbackAvatarService {
 
     // Simular procesamiento de TTS
     console.log(`Fallback TTS for session ${sessionId}: "${text}"`);
-    
+
     // En una implementación real, aquí se usaría un servicio de TTS alternativo
     // como Google Cloud TTS, Azure Cognitive Services, o ElevenLabs
     return Promise.resolve();
@@ -111,7 +111,7 @@ export class FallbackAvatarService {
   // Cleanup de sesiones antiguas
   cleanupOldSessions(maxAgeMinutes: number = 30): void {
     const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000);
-    
+
     Array.from(this.activeSessions.entries()).forEach(([sessionId, session]) => {
       if (session.created < cutoff) {
         this.activeSessions.delete(sessionId);

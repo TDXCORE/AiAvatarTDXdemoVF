@@ -46,17 +46,17 @@ export class SimpleAvatarClient {
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.message || 'Session creation failed');
       }
 
       this.sessionId = result.data.sessionId;
-      
+
       this.onStateChange?.({
         phase: 'ready',
         sessionId: this.sessionId,
-        previewUrl: result.data.previewUrl,
+        previewUrl: result.data.streamUrl || result.data.previewUrl,
         isConnected: true
       });
 
@@ -95,7 +95,7 @@ export class SimpleAvatarClient {
       }
 
       console.log('Avatar speaking with REPEAT mode:', text);
-      
+
       // Return to ready state after estimated speech time
       const estimatedSpeechTime = text.length * 50; // 50ms per character
       setTimeout(() => {
