@@ -10,6 +10,7 @@ export interface SimpleAvatarState {
 export class SimpleAvatarClient {
   private sessionId: string | null = null;
   private token: string | null = null;
+  private isHeyGenSession: boolean = false;
   private onStateChange?: (state: Partial<SimpleAvatarState>) => void;
 
   constructor(onStateChange?: (state: Partial<SimpleAvatarState>) => void) {
@@ -68,8 +69,8 @@ export class SimpleAvatarClient {
         isConnected: true // Activar preview inmediatamente
       });
 
-      // HeyGen repeat sessions son ready inmediatamente, preview activado
-      console.log('HeyGen session ready for repeat mode with preview active');
+      // HeyGen REPEAT sessions son ready inmediatamente, preview activado
+      console.log('HeyGen session ready for REPEAT mode with preview active');
 
     } catch (error) {
       console.error('Session initialization failed:', error);
@@ -120,7 +121,7 @@ export class SimpleAvatarClient {
         body: JSON.stringify({
           sessionId: this.sessionId,
           text: text,
-          taskType: 'repeat'
+          taskType: 'REPEAT'
         })
       });
 
