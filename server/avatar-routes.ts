@@ -3,9 +3,179 @@ import { HeyGenService } from "./heygen-service.js";
 import { FallbackAvatarService } from "./fallback-avatar-service.js";
 import path from "path";
 import fs from "fs";
+import { HeyGenSessionManager } from './session-manager.js';
 
-export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
+export function addAvatarRoutes(app: Express) {
+  const heygenService = new HeyGenService();
   const fallbackService = new FallbackAvatarService();
+  const sessionManager = new HeyGenSessionManager(heygenService);
+
+  // Validar estado de sesión antes de usar
+  async function validateSessionHealth(sessionId: string): Promise<boolean> {
+    try {
+      console.log(`🔍 Validando salud de sesión: ${sessionId}`);
+
+      // Test TTS mínimo para verificar que la sesión está activa
+      const testResponse = await fetch(`https://api.heygen.com/v1/streaming.task`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.HEYGEN_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          text: "test",
+          task_type: 'repeat'
+        }),
+      });
+
+      const isHealthy = testResponse.ok;
+      console.log(`${isHealthy ? '✅' : '❌'} Sesión ${sessionId} health: ${isHealthy}`);
+      return isHealthy;
+    } catch (error) {
+      console.error(`❌ Error validando sesión ${sessionId}: ${error}`);
+      return false;
+    }
+  }
+
+  // Establecer WebRTC con retry logic
+  async function establishWebRTCConnection(sessionData: any, maxRetries = 3): Promise<boolean> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Intento ${attempt}/${maxRetries} - Estableciendo WebRTC para ${sessionData.sessionId}`);
+
+        await heygenService.startSession(sessionData.sessionId);
+
+        // Verificar que la sesión responde correctamente después de start
+        const isHealthy = await validateSessionHealth(sessionData.sessionId);
+
+        if (isHealthy) {
+          console.log(`✅ WebRTC establecido exitosamente para ${sessionData.sessionId}`);
+          return true;
+        } else {
+          console.warn(`⚠️ Sesión ${sessionData.sessionId} no pasó validación post-start`);
+        }
+      } catch (error) {
+        console.error(`❌ Error en intento ${attempt}: ${error}`);
+
+        if (attempt < maxRetries) {
+          const backoffDelay = attempt * 1000; // 1s, 2s, 3s
+          console.log(`⏳ Esperando ${backoffDelay}ms antes del siguiente intento...`);
+          await new Promise(resolve => setTimeout(resolve, backoffDelay));
+        }
+      }
+    }
+
+    console.error(`❌ Falló establecer WebRTC después de ${maxRetries} intentos`);
+    return false;
+  }
+
+  // Test completo end-to-end
+  async function testCompleteAvatarPipeline(sessionId: string): Promise<boolean> {
+    try {
+      console.log(`🧪 Ejecutando test completo para sesión: ${sessionId}`);
+
+      // 1. Validar sesión activa
+      const isHealthy = await validateSessionHealth(sessionId);
+      if (!isHealthy) {
+        console.error('❌ Test falló: Sesión no está saludable');
+        return false;
+      }
+
+      // 2. Test TTS de prueba
+      console.log('🎯 Enviando TTS de prueba...');
+      await heygenService.sendTextToSpeech("Hola, soy el Dr. Carlos", sessionId);
+
+      // 3. Esperar respuesta
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 4. Validar que aún está activa
+      const stillHealthy = await validateSessionHealth(sessionId);
+      if (!stillHealthy) {
+        console.error('❌ Test falló: Sesión se desconectó después de TTS');
+        return false;
+      }
+
+      console.log('✅ Test completo exitoso - Avatar pipeline funcionando');
+      return true;
+    } catch (error) {
+      console.error(`❌ Test completo falló: ${error}`);
+      return false;
+    }
+  }
+
+  // Crear sesión con retry inteligente
+  async function createRobustHeyGenSession(avatarId?: string, maxRetries = 2): Promise<any> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🚀 Intento ${attempt}/${maxRetries} - Creando sesión HeyGen robusta`);
+
+        // Crear sesión
+        const sessionData = await heygenService.createStreamingSession(avatarId);
+        console.log(`✅ Sesión creada: ${sessionData.sessionId}`);
+
+        // Establecer WebRTC
+        const webrtcSuccess = await establishWebRTCConnection(sessionData);
+        if (!webrtcSuccess) {
+          console.warn(`⚠️ WebRTC falló para ${sessionData.sessionId}, intentando nueva sesión...`);
+          await heygenService.closeSession(sessionData.sessionId);
+          continue;
+        }
+
+        // Test completo
+        const pipelineSuccess = await testCompleteAvatarPipeline(sessionData.sessionId);
+        if (!pipelineSuccess) {
+          console.warn(`⚠️ Pipeline test falló para ${sessionData.sessionId}, intentando nueva sesión...`);
+          await heygenService.closeSession(sessionData.sessionId);
+          continue;
+        }
+
+        console.log(`🎉 SESIÓN HEYGEN ROBUSTA CREADA Y VALIDADA: ${sessionData.sessionId}`);
+        return sessionData;
+
+      } catch (error) {
+        console.error(`❌ Error en intento ${attempt}: ${error}`);
+
+        if (attempt < maxRetries) {
+          console.log(`⏳ Esperando antes del siguiente intento...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+    }
+
+    throw new Error(`❌ Falló crear sesión HeyGen robusta después de ${maxRetries} intentos`);
+  }
+
+  // Monitoreo en tiempo real
+  const activeSessionsHealth = new Map<string, NodeJS.Timeout>();
+
+  function startHealthMonitoring(sessionId: string) {
+    console.log(`🔍 Iniciando monitoreo de salud para ${sessionId}`);
+
+    const healthCheck = setInterval(async () => {
+      try {
+        const isHealthy = await validateSessionHealth(sessionId);
+        if (!isHealthy) {
+          console.warn(`⚠️ Sesión ${sessionId} perdió salud - requiere reconexión`);
+          clearInterval(healthCheck);
+          activeSessionsHealth.delete(sessionId);
+        }
+      } catch (error) {
+        console.error(`❌ Error en health check para ${sessionId}: ${error}`);
+      }
+    }, 30000); // Check cada 30 segundos
+
+    activeSessionsHealth.set(sessionId, healthCheck);
+  }
+
+  function stopHealthMonitoring(sessionId: string) {
+    const healthCheck = activeSessionsHealth.get(sessionId);
+    if (healthCheck) {
+      clearInterval(healthCheck);
+      activeSessionsHealth.delete(sessionId);
+      console.log(`🛑 Detenido monitoreo de salud para ${sessionId}`);
+    }
+  }
   
   // Create avatar token for session hygiene
   app.post("/api/avatar/token", async (req, res) => {
@@ -53,48 +223,46 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
       });
     }
   });
-  
-  // Create new avatar streaming session - FORZAR HEYGEN REAL
+
+  // Routes
   app.post("/api/avatar/session", async (req, res) => {
     try {
       const { avatarId } = req.body;
-      
-      // SOLO HEYGEN - NO FALLBACK
-      console.log('🎯 FORZANDO CREACIÓN DE SESIÓN HEYGEN REAL...');
-      
-      const heygenData = await heygenService.createStreamingSession(avatarId);
-      console.log('✅ SESIÓN HEYGEN REAL CREADA:', heygenData.sessionId);
-      
-      // HeyGen sessions are ready to use immediately after creation
-      // No need to call startSession - that's for WebRTC which we handle client-side
-      
+
+      console.log('🎯 CREANDO SESIÓN HEYGEN ROBUSTA CON VALIDACIÓN COMPLETA...');
+
+      const sessionData = await createRobustHeyGenSession(avatarId);
+
+      // Iniciar monitoreo de salud
+      startHealthMonitoring(sessionData.sessionId);
+
       res.json({
         success: true,
         data: {
-          sessionId: heygenData.sessionId,
-          previewUrl: heygenData.previewUrl,
-          streamUrl: heygenData.streamUrl,
+          sessionId: sessionData.sessionId,
+          previewUrl: sessionData.previewUrl,
+          streamUrl: sessionData.streamUrl,
           isHeyGen: true,
           isReal: true,
-          isReady: true // Sesión lista para usar sin WebRTC server-side
+          isReady: true,
+          isValidated: true,
+          webrtcEstablished: true
         }
       });
     } catch (error) {
-      console.error('❌ FALLÓ CREACIÓN DE SESIÓN HEYGEN:', error);
+      console.error('❌ FALLÓ CREACIÓN DE SESIÓN ROBUSTA:', error);
       res.status(500).json({ 
         success: false,
-        message: "Failed to create HeyGen session - NO FALLBACK ALLOWED",
-        error: error instanceof Error ? error.message : "Unknown error",
-        requiresReset: true
+        message: "Failed to create robust HeyGen session",
+        error: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
 
-  // Start avatar session (separate endpoint)
   app.post("/api/avatar/start", async (req, res) => {
     try {
       const { sessionId } = req.body;
-      
+
       if (!sessionId) {
         return res.status(400).json({
           success: false,
@@ -102,14 +270,26 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
         });
       }
 
-      await heygenService.startSession(sessionId);
-      
+      console.log(`🚀 Iniciando sesión validada: ${sessionId}`);
+
+      // La sesión ya fue validada en /session, aquí solo confirmamos
+      const isHealthy = await validateSessionHealth(sessionId);
+      if (!isHealthy) {
+        return res.status(400).json({
+          success: false,
+          message: "Session is not ready for streaming",
+          requiresReconnection: true
+        });
+      }
+
+      sessionManager.updateActivity(sessionId);
+
       res.json({
         success: true,
-        message: "Avatar session started"
+        message: "Avatar session started successfully"
       });
     } catch (error) {
-      console.error('Avatar start error:', error);
+      console.error('❌ Avatar start error:', error);
       res.status(500).json({ 
         success: false,
         message: "Failed to start avatar session",
@@ -118,43 +298,39 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
 
-  // Send text to avatar for speech with fallback
   app.post("/api/avatar/speak", async (req, res) => {
     try {
       const { text, sessionId } = req.body;
-      
-      if (!text || !sessionId) {
+
+      if (!sessionId || !text) {
         return res.status(400).json({
           success: false,
-          message: "Text and sessionId are required"
+          message: "SessionId and text are required"
         });
       }
 
-      // Check if it's a HeyGen session or fallback
-      if (sessionId.startsWith('fallback_')) {
-        await fallbackService.sendTextToSpeech(text, sessionId);
-        res.json({
-          success: true,
-          message: "Text processed via fallback service"
+      console.log(`🎤 Enviando TTS con validación previa: "${text}"`);
+
+      // Validar sesión antes de enviar TTS
+      const isHealthy = await validateSessionHealth(sessionId);
+      if (!isHealthy) {
+        return res.status(400).json({
+          success: false,
+          message: "Session is not healthy for TTS",
+          requiresReconnection: true
         });
-      } else {
-        try {
-          await heygenService.sendTextToSpeech(text, sessionId);
-          res.json({
-            success: true,
-            message: "Text sent to avatar via HeyGen"
-          });
-        } catch (heygenError) {
-          console.error('HeyGen TTS failed:', heygenError);
-          res.status(500).json({
-            success: false,
-            message: "Failed to send text to HeyGen avatar",
-            error: heygenError instanceof Error ? heygenError.message : "Unknown error"
-          });
-        }
       }
+
+      // Enviar TTS
+      await heygenService.sendTextToSpeech(text, sessionId);
+      sessionManager.updateActivity(sessionId);
+
+      res.json({
+        success: true,
+        message: "Text sent to avatar successfully"
+      });
     } catch (error) {
-      console.error('Avatar speak error:', error);
+      console.error('❌ Avatar speak error:', error);
       res.status(500).json({ 
         success: false,
         message: "Failed to send text to avatar",
@@ -163,7 +339,6 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
 
-  // Send greeting to avatar
   app.post("/api/avatar/greet", async (req, res) => {
     try {
       const { sessionId } = req.body;
@@ -191,11 +366,10 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
     }
   });
 
-  // Close avatar session
   app.post("/api/avatar/close", async (req, res) => {
     try {
       const { sessionId } = req.body;
-      
+
       if (!sessionId) {
         return res.status(400).json({
           success: false,
@@ -203,14 +377,20 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
         });
       }
 
-      await heygenService.closeSession(sessionId);
-      
+      console.log(`🛑 Cerrando sesión: ${sessionId}`);
+
+      // Detener monitoreo
+      stopHealthMonitoring(sessionId);
+
+      // Cerrar sesión
+      await sessionManager.closeSession(sessionId);
+
       res.json({
         success: true,
-        message: "Avatar session closed"
+        message: "Avatar session closed successfully"
       });
     } catch (error) {
-      console.error('Avatar close error:', error);
+      console.error('❌ Avatar close error:', error);
       res.status(500).json({ 
         success: false,
         message: "Failed to close avatar session",
@@ -382,5 +562,14 @@ export function addAvatarRoutes(app: Express, heygenService: HeyGenService) {
         message: "Failed to get avatar list"
       });
     }
+  });
+
+  // Cleanup al shutdown
+  process.on('SIGINT', () => {
+    console.log('🧹 Limpiando monitoreo de salud...');
+    for (const [sessionId, healthCheck] of activeSessionsHealth.entries()) {
+      clearInterval(healthCheck);
+    }
+    activeSessionsHealth.clear();
   });
 }
