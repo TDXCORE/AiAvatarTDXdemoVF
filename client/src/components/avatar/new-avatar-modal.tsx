@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -34,11 +33,11 @@ export function NewAvatarModal({
   });
 
   const [isMuted, setIsMuted] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(isCallActive);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('09:53');
-  
+
   const avatarClientRef = useRef<StreamingAvatarClient | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -103,7 +102,7 @@ export function NewAvatarModal({
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
-      
+
       // Send response to avatar
       if (avatarClientRef.current?.isReady()) {
         try {
@@ -112,7 +111,7 @@ export function NewAvatarModal({
           console.error('Failed to send response to avatar:', error);
         }
       }
-      
+
       onMessageReceived?.('', response);
     },
   });
@@ -144,7 +143,7 @@ export function NewAvatarModal({
           const [minutes, seconds] = prev.split(':').map(Number);
           const totalSeconds = minutes * 60 + seconds;
           if (totalSeconds <= 0) return '00:00';
-          
+
           const newTotal = totalSeconds - 1;
           const newMinutes = Math.floor(newTotal / 60);
           const newSeconds = newTotal % 60;
@@ -182,7 +181,7 @@ export function NewAvatarModal({
 
       // Initialize with video element
       await avatarClientRef.current.initialize(videoRef.current);
-      
+
       // Start call automatically
       handleStartCall();
 
@@ -205,7 +204,7 @@ export function NewAvatarModal({
 
     try {
       setAvatarState(prev => ({ ...prev, phase: 'listening' }));
-      
+
       await audioProcessor.processAudioMessage(
         audioBlob, 
         true,
@@ -227,7 +226,7 @@ export function NewAvatarModal({
 
     try {
       setTextInput('');
-      
+
       await audioProcessor.processTextMessage(
         text, 
         true,
@@ -246,11 +245,11 @@ export function NewAvatarModal({
 
   const handleStartCall = async () => {
     if (!avatarClientRef.current) return;
-    
+
     try {
       setIsCallActive(true);
       setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
-      
+
       // Request microphone permission
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -262,7 +261,7 @@ export function NewAvatarModal({
           }
         });
         stream.getTracks().forEach(track => track.stop());
-        
+
         // Start VAD
         setTimeout(() => {
           if (!isMuted) {
@@ -277,10 +276,10 @@ export function NewAvatarModal({
           variant: 'destructive',
         });
       }
-      
+
       // Send initial greeting
       await avatarClientRef.current.speakAgentResponse("¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?");
-      
+
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -301,7 +300,7 @@ export function NewAvatarModal({
   const cleanup = async () => {
     vad.stopListening();
     recorder.cancelRecording();
-    
+
     if (avatarClientRef.current) {
       try {
         await avatarClientRef.current.close();
@@ -367,7 +366,7 @@ export function NewAvatarModal({
             controls={false}
             style={{ display: avatarState.isConnected && ready ? 'block' : 'none' }}
           />
-          
+
           {/* Fallback display */}
           {(!avatarState.isConnected || !ready) && (
             <div className="absolute inset-0 bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
@@ -394,7 +393,7 @@ export function NewAvatarModal({
               Judy is speaking...
             </div>
           )}
-          
+
           {avatarState.phase === 'listening' && (
             <div className="absolute bottom-20 left-4 bg-green-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
               <div className="w-3 h-3 bg-white rounded-full animate-pulse mr-2"></div>

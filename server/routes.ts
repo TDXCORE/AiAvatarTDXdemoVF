@@ -138,28 +138,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const assistantReply = await psychologicalAgent.processMessage(sessionId, inputText);
       const processingTime = Date.now() - startTime;
 
-      // If this is an avatar call, send the response to HeyGen
-      if (req.body.isAvatarCall && req.body.avatarSessionId) {
-        const isAvatarCall = req.body.isAvatarCall;
-        const avatarSessionId = req.body.avatarSessionId;
-        const replyText = assistantReply;
-        // Send response to avatar if avatar session is active
-        if (isAvatarCall && avatarSessionId) {
-          try {
-            // Check if it's a fallback session
-            if (avatarSessionId.startsWith('fallback_')) {
-              console.log(`Fallback TTS for session ${avatarSessionId}: "${replyText}"`);
-              // For fallback sessions, just log - no actual TTS
-            } else {
-              // For real HeyGen sessions, use the service
-              await heygenService.sendTextToSpeech(replyText, avatarSessionId);
-            }
-          } catch (avatarError) {
-            console.error('Failed to send response to avatar:', avatarError);
-            // Don't fail the whole request if avatar TTS fails
-          }
-        }
-      }
+      // Avatar TTS is now handled by the frontend SDK directly
+      // Backend only processes STT -> LLM, frontend handles LLM -> Avatar
 
       // Store both user message and assistant reply
       await storage.addMessage({
