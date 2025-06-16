@@ -65,27 +65,28 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
     }
   };
 
-  // If we have a sessionId and previewUrl, show the avatar preview
-  if (avatarState.sessionId && avatarState.previewUrl) {
-    console.log('Avatar image source:', avatarState.previewUrl);
+  // If we have a sessionId, show the HeyGen streaming iframe
+  if (avatarState.sessionId) {
+    console.log('HeyGen streaming session:', avatarState.sessionId);
     
     return (
       <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
-        {/* Avatar Preview Image */}
+        {/* HeyGen Streaming Avatar */}
         <div className="relative w-full h-full">
-          <img
-            src={avatarState.previewUrl}
-            alt="Dr. Carlos Mendoza"
-            className={`w-full h-full object-cover transition-all duration-300 ${
+          <iframe
+            src={`https://app.heygen.com/embed/v1/${avatarState.sessionId}`}
+            className={`w-full h-full border-0 transition-all duration-300 ${
               isAnimating 
                 ? 'scale-105 brightness-110' 
                 : 'scale-100 brightness-100'
             }`}
+            title="Dr. Carlos Mendoza - Avatar en Streaming"
+            allow="camera; microphone; autoplay"
             onLoad={() => {
-              console.log('Dr. Carlos Mendoza avatar loaded successfully');
+              console.log('HeyGen streaming avatar loaded successfully');
             }}
-            onError={(e) => {
-              console.warn('Avatar preview failed to load:', e);
+            onError={() => {
+              console.warn('HeyGen streaming failed');
             }}
           />
           
@@ -117,42 +118,14 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
     );
   }
 
-  // Fallback when no session is available
+  // Loading state while waiting for session
   return (
     <div className="relative w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-900 rounded-lg flex items-center justify-center">
       <div className="text-center">
-        <div className="w-20 h-20 mx-auto mb-4 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-          <span className="text-2xl">👨‍⚕️</span>
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Dr. Carlos Mendoza</h3>
-        <p className="text-sm text-gray-600 dark:text-gray-400">Conectando con el avatar...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Conectando con Dr. Carlos Mendoza</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Estableciendo conexión de streaming...</p>
       </div>
-    </div>
-  );
-
-  return (
-    <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
-      {/* This code should not be reached now */}
-      <div className="relative w-full h-full"></div>
-
-      {/* State-specific overlays */}
-      {renderStateOverlay()}
-      
-      {/* Connection indicator */}
-      <div className="absolute top-4 right-4">
-        <div className={`w-3 h-3 rounded-full ${
-          avatarState.isConnected ? 'bg-green-500' : 'bg-red-500'
-        }`} />
-      </div>
-
-      {/* Speaking animation rings */}
-      {isAnimating && (
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-4 border-2 border-blue-400/30 rounded-full animate-ping"></div>
-          <div className="absolute inset-8 border-2 border-blue-400/20 rounded-full animate-ping animation-delay-75"></div>
-          <div className="absolute inset-12 border-2 border-blue-400/10 rounded-full animate-ping animation-delay-150"></div>
-        </div>
-      )}
     </div>
   );
 }

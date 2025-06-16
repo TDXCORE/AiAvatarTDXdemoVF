@@ -155,8 +155,9 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     if (!avatarClientRef.current) return;
     
     try {
+      // Start the streaming session
       await avatarClientRef.current.setReady();
-      setShowVideoPlayer(true);
+      setAvatarState(prev => ({ ...prev, phase: 'ready', isConnected: true }));
     } catch (error) {
       console.error('Failed to start call:', error);
     }
@@ -201,37 +202,15 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
     }
   };
 
-  const ready = Boolean(avatarState.sessionId && avatarState.previewUrl);
+  const ready = Boolean(avatarState.sessionId);
 
   const renderAvatarDisplay = () => {
-    if (showVideoPlayer && avatarState.sessionId) {
-      return (
-        <AvatarVideoPlayer 
-          sessionId={avatarState.sessionId}
-          onStreamReady={() => console.log('Video stream ready')}
-        />
-      );
-    }
-    
-    // Show the avatar preview when ready or when we have a sessionId
-    if (ready || avatarState.sessionId) {
-      return (
-        <AnimatedAvatarDisplay 
-          avatarState={avatarState}
-          className="w-full h-full"
-        />
-      );
-    }
-    
-    // Show loading state while waiting for session and preview
+    // Always show the animated avatar display with streaming
     return (
-      <div className="w-full h-full bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-900 rounded-lg flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Conectando con Dr. Carlos Mendoza</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Estableciendo conexión segura...</p>
-        </div>
-      </div>
+      <AnimatedAvatarDisplay 
+        avatarState={avatarState}
+        className="w-full h-full"
+      />
     );
   };
 
