@@ -65,26 +65,27 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
     }
   };
 
-  // If we have a sessionId, show the streaming avatar
-  if (avatarState.sessionId) {
+  // If we have a sessionId and previewUrl, show the avatar preview
+  if (avatarState.sessionId && avatarState.previewUrl) {
+    console.log('Avatar image source:', avatarState.previewUrl);
+    
     return (
       <div className={`relative w-full h-full rounded-lg overflow-hidden ${className || ''}`}>
-        {/* HeyGen Streaming Avatar */}
+        {/* Avatar Preview Image */}
         <div className="relative w-full h-full">
-          <iframe
-            src={`https://app.heygen.com/embed/v1/${avatarState.sessionId}`}
-            className={`w-full h-full border-0 transition-all duration-300 ${
+          <img
+            src={avatarState.previewUrl}
+            alt="Dr. Carlos Mendoza"
+            className={`w-full h-full object-cover transition-all duration-300 ${
               isAnimating 
                 ? 'scale-105 brightness-110' 
                 : 'scale-100 brightness-100'
             }`}
-            title="Dr. Carlos Mendoza - Avatar en Vivo"
-            allow="camera; microphone; autoplay"
             onLoad={() => {
-              console.log('HeyGen streaming avatar loaded successfully');
+              console.log('Dr. Carlos Mendoza avatar loaded successfully');
             }}
-            onError={() => {
-              console.warn('HeyGen streaming failed, using fallback');
+            onError={(e) => {
+              console.warn('Avatar preview failed to load:', e);
             }}
           />
           
