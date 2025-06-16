@@ -213,8 +213,8 @@ export function AvatarModal({ isOpen, onClose, sessionId, onMessageReceived }: A
       );
     }
     
-    // Show the avatar preview only when ready
-    if (ready) {
+    // Show the avatar preview when ready or when we have a sessionId
+    if (ready || avatarState.sessionId) {
       return (
         <AnimatedAvatarDisplay 
           avatarState={avatarState}

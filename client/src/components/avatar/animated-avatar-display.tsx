@@ -18,7 +18,7 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
   }, [avatarState.phase]);
 
   const isValidPreview = (url?: string) => {
-    return !!url && /\.(png|jpg|jpeg|webp|gif|svg)$/.test(url);
+    return !!url && (url.startsWith('/api/avatar/preview/') || /\.(png|jpg|jpeg|webp|gif|svg)$/.test(url));
   };
 
   const renderStateOverlay = () => {
@@ -84,21 +84,21 @@ export function AnimatedAvatarDisplay({ avatarState, className }: AnimatedAvatar
       {/* Dr. Carlos Mendoza Avatar with HeyGen Validation */}
       <div className="relative w-full h-full">
         <img
-          src={isValidPreview(avatarState.previewUrl) 
-            ? avatarState.previewUrl 
-            : '/api/avatar/preview/Dexter_Doctor_Standing2_public'}
+          src={avatarState.previewUrl || '/api/avatar/preview/Dexter_Doctor_Standing2_public'}
           alt="Dr. Carlos Mendoza"
           className={`w-full h-full object-cover transition-all duration-300 ${
             isAnimating 
               ? 'scale-105 brightness-110 animate-pulse' 
               : 'scale-100 brightness-100'
           }`}
-          onLoad={() => {
+          onLoad={(e) => {
             console.log('Dr. Carlos Mendoza avatar loaded successfully');
+            console.log('Avatar image source:', (e.target as HTMLImageElement).src);
           }}
           onError={(e) => {
-            console.warn('Avatar preview failed, using fallback');
+            console.warn('Avatar preview failed, trying fallback');
             const target = e.target as HTMLImageElement;
+            console.log('Failed source:', target.src);
             target.src = '/api/avatar/preview/Dexter_Doctor_Standing2_public';
           }}
         />
