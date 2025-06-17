@@ -10,7 +10,7 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
+          src: 'node_modules/@ricky0123/vad-web/dist/bundle/worklet/vad.worklet.bundle.min.js',
           dest: 'vad'
         },
         {
@@ -18,15 +18,15 @@ export default defineConfig({
           dest: 'vad'
         },
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/ort-wasm.wasm',
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm.wasm',
           dest: 'vad'
         },
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/ort-wasm-simd.wasm',
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm',
           dest: 'vad'
         },
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/ort-wasm-threaded.wasm',
+          src: 'node_modules/onnxruntime-web/dist/ort-wasm-threaded.wasm',
           dest: 'vad'
         }
       ]
