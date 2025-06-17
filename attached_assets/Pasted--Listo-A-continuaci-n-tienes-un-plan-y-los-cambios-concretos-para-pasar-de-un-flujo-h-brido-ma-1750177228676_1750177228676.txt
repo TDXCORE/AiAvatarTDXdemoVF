@@ -1,0 +1,147 @@
+¡Listo! A continuación tienes un plan — y los cambios concretos — para pasar de un flujo híbrido (manual + automático) a un único flujo 100 % VAD-automático sin botones redundantes ni time-outs innecesarios.
+
+⸻
+
+1. Unificar la fuente de verdad del estado de la llamada (isCallActive)
+
+a)  context/callContext.ts
+
+export interface CallState {
+  isCallActive: boolean;   // ✅  SINGLE SOURCE OF TRUTH
+  isMuted: boolean;
+  phase: 'talking' | 'listening' | 'idle';
+}
+
+const defaultState: CallState = {
+  isCallActive: false,
+  isMuted: false,
+  phase: 'idle',
+};
+
+export const CallContext = createContext<[CallState, Dispatch<…>]>(…);
+
+b)  hooks/useCallLifecycle.ts
+
+// Se dispara cuando el avatar inicia / detiene audio
+useEffect(() => {
+  avatar.on('speech-start', () => dispatch({type:'SET_PHASE', phase:'talking'}));
+  avatar.on('speech-end',   () => {
+    dispatch({type:'SET_PHASE', phase:'listening'});
+    dispatch({type:'SET_ACTIVE', isCallActive:true});   // 🔑 Activamos la llamada aquí
+  });
+}, []);
+
+Así te aseguras de que isCallActive = true tan pronto el avatar termine de hablar y tu VAD pueda activarse.
+
+⸻
+
+2. Consolidar una sola instancia de VAD
+
+a)  hooks/useVAD.ts
+
+const useVAD = () => {
+  const [call] = useContext(CallContext);
+  const recorder = useRecorder();           // único hook de grabación
+  const vadRef   = useRef<VAD | null>(null);
+
+  useEffect(() => {
+    if (!vadRef.current) {
+      vadRef.current = new VAD({
+        speechStartDelay:  120,   // ⚡ más agresivo
+        speechEndDelay:    350,
+        cooldownDelay:     250,
+      });
+    }
+    return () => vadRef.current?.destroy();
+  }, []);
+
+  useEffect(() => {
+    if (call.phase === 'listening' && call.isCallActive && !call.isMuted) {
+      vadRef.current?.start();
+    } else {
+      vadRef.current?.stop();
+    }
+  }, [call.phase, call.isCallActive, call.isMuted]);
+
+  useEffect(() => {
+    vadRef.current?.on('speech-start', () => recorder.start());
+    vadRef.current?.on('speech-end',   () => recorder.stop());
+  }, [recorder]);
+};
+export default useVAD;
+
+Con este patrón React solo montas una instancia y la destruyes al desmontar el componente.
+
+⸻
+
+3. Eliminar componentes “legacy”
+
+Archivo	Acción
+components/VoiceControls.tsx	Borrar archivo y referencias
+components/VoiceRecorder.tsx	Borrar – la lógica vive ahora en useRecorder
+Botón en new-avatar-modal.tsx	Eliminar <MicButton … /> y el estado asociado
+
+	•	Reemplaza cualquier <VoiceControls … /> por el hook useVAD() que auto-maneja el ciclo.
+
+⸻
+
+4. Limpieza de time-outs de grabación
+
+En useRecorder.ts remueve la lógica:
+
+// ❌ fuera
+setTimeout(stop, 45_000);
+
+y confía 100 % en los eventos speech-end del VAD.
+
+⸻
+
+5. Ajustar la condición de auto-grabación
+
+En tu antigua lógica:
+
+if (!recorder.isRecording && isCallActive && !isMuted && avatarState.phase === 'listening') {
+  handleStartRecording();
+}
+
+queda reemplazada por los event listeners del VAD mostrados arriba, eliminando duplicidad.
+
+⸻
+
+6. Pasos de refactor en orden
+	1.	Crear/actualizar CallContext y useCallLifecycle.ts.
+	2.	Instalar useVAD en tu componente raíz del modal:
+
+const NewAvatarModal = () => {
+  useVAD();    // solo una línea
+  …
+}
+
+
+	3.	Eliminar VoiceControls, VoiceRecorder y botones manuales.
+	4.	Borrar time-outs de grabación en useRecorder.
+	5.	Verificar en logs:
+	•	Solo un 🎤 Starting voice activity detection... al abrir el modal.
+	•	Transición phase: talking → listening y luego speech-start / speech-end sin “timeout reached”.
+
+⸻
+
+7. Parámetros recomendados de VAD
+
+Parámetro	Valor	Motivo
+speechStartDelay	120 ms	Detecta frases cortas “hola” sin lag
+speechEndDelay	350 ms	Corta silencios > ⅓ s para respuesta ágil
+cooldownDelay	250 ms	Evita rebotes en silencios muy breves
+energyThreshold	0.01	Ajusta según tu micro; menos = más sensible
+
+
+⸻
+
+Resultado esperado
+	1.	No hay botón de micrófono: la UI queda limpia.
+	2.	Al terminar de hablar el avatar, el VAD entra instantáneamente en modo escucha.
+	3.	El usuario habla; VAD dispara speech-start → recorder.start().
+	4.	Cuando el usuario hace pausa, VAD dispara speech-end → recorder.stop() sin time-out manual.
+	5.	No existen logs duplicados de inicialización VAD.
+
+Con esto eliminas los conflictos y garantizas un loop conversacional 100 % manos libres, listo para tiempos de ciclo < 1000 ms. Dale duro y me cuentas cómo va. 👊🏼
