@@ -21,7 +21,7 @@ export class MicVADSingleton {
   private static defaultConfig: MicVADConfig = {
     baseUrl: '/vad',
     workletPath: '/vad/vad.worklet.bundle.min.js',
-    modelURL: '/vad/silero_vad.onnx',
+    modelURL: '/vad/silero_vad_v5.onnx',
     onnxWASMBasePath: '/vad',
     ortConfig: {
       wasmPaths: '/vad/'

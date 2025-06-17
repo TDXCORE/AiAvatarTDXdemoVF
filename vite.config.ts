@@ -10,11 +10,11 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/bundle/worklet/vad.worklet.bundle.min.js',
+          src: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
           dest: 'vad'
         },
         {
-          src: 'node_modules/@ricky0123/vad-web/dist/silero_vad.onnx',
+          src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx',
           dest: 'vad'
         },
         {
