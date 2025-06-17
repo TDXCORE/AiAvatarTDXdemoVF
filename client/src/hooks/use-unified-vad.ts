@@ -12,9 +12,9 @@ const VAD_CONFIG = {
   sampleRate: 16000,          
   bufferSize: 2048,           
 
-  // Thresholds calibrados para mejor detección de voz
-  voiceThreshold: 4,          // BAJADO de 8 a 4 para mayor sensibilidad
-  silenceThreshold: 2,        // BAJADO de 3 a 2 para detectar silencios mejor
+  // Thresholds ultra-sensibles para detectar voz normal
+  voiceThreshold: 2,          // BAJADO de 4 a 2 para máxima sensibilidad
+  silenceThreshold: 1,        // BAJADO de 2 a 1 para detectar silencios mejor
 
   // Tiempos optimizados para respuesta inmediata
   speechStartDelay: 50,       // Más rápido para detección inmediata
@@ -36,10 +36,14 @@ interface VADBuffer {
   maxSize: number;
 }
 
+// 🔥 SINGLETON GLOBAL - Solo una instancia VAD en toda la aplicación
+let globalVADActive = false;
+let globalVADInstanceId: string | null = null;
+
 export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<void>) => {
   const { state } = useCallState();
 
-  // 🔥 CONTROL SINGLETON MEJORADO - Evita doble inicialización
+  // Control singleton mejorado con verificación global
   const initializationStateRef = useRef<'idle' | 'initializing' | 'active' | 'stopping'>('idle');
   const vadInstanceRef = useRef<boolean>(false);
   const lastLogTimeRef = useRef<number>(0);
@@ -296,8 +300,8 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       buffer.confidence.shift();
     }
 
-    // Detección de voz más sensible para captar voz normal
-    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.03;
+    // Detección de voz ultra-sensible para captar susurros
+    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.01; // Reducido de 0.03 a 0.01
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
     const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
 
@@ -448,17 +452,22 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
   ]);
 
   const startListening = useCallback(async () => {
-    // 🔥 CONTROL SINGLETON MEJORADO
-    if (initializationStateRef.current !== 'idle' || vadInstanceRef.current) {
-      console.log(`🎤 VAD[${instanceIdRef.current}] already in progress:`, {
-        initState: initializationStateRef.current,
-        vadInstance: vadInstanceRef.current
+    // 🔥 CONTROL SINGLETON GLOBAL - Solo una instancia en toda la app
+    if (globalVADActive || initializationStateRef.current !== 'idle' || vadInstanceRef.current) {
+      console.log(`🎤 VAD[${instanceIdRef.current}] blocked - Global VAD already active:`, {
+        globalActive: globalVADActive,
+        globalInstanceId: globalVADInstanceId,
+        localInitState: initializationStateRef.current,
+        localVadInstance: vadInstanceRef.current
       });
       return;
     }
 
+    // Reclamar el singleton global
+    globalVADActive = true;
+    globalVADInstanceId = instanceIdRef.current;
     initializationStateRef.current = 'initializing';
-    console.log(`🎤 VAD[${instanceIdRef.current}] Starting initialization...`);
+    console.log(`🎤 VAD[${instanceIdRef.current}] Starting initialization (claimed global singleton)...`);
 
     try {
       console.log('🎤 Starting unified VAD with integrated recording...');
@@ -559,8 +568,14 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       return;
     }
 
+    // Solo permitir detener si somos la instancia activa global
+    if (globalVADInstanceId !== instanceIdRef.current) {
+      console.log(`🛑 VAD[${instanceIdRef.current}] cannot stop - not the global instance (${globalVADInstanceId})`);
+      return;
+    }
+
     initializationStateRef.current = 'stopping';
-    console.log('🛑 Stopping unified VAD...');
+    console.log(`🛑 Stopping unified VAD (releasing global singleton)...`);
 
     // Limpiar timeouts
     Object.values(timeoutsRef.current).forEach(timeout => {
@@ -611,6 +626,10 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     mediaRecorderRef.current = null;
     vadInstanceRef.current = false;
     initializationStateRef.current = 'idle';
+    
+    // 🔥 LIBERAR SINGLETON GLOBAL
+    globalVADActive = false;
+    globalVADInstanceId = null;
 
     setIsListening(false);
     setVadState('idle');
@@ -627,7 +646,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       consecutiveSilenceFrames: 0,
     };
 
-    console.log('🛑 ✅ Unified VAD stopped successfully');
+    console.log(`🛑 ✅ Unified VAD stopped successfully (global singleton released)`);
   }, [isRecording, cancelRecording]);
 
   // 🔥 CONTROL PRINCIPAL SIMPLIFICADO - Evita loops
@@ -639,11 +658,13 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       state.avatarConnected
     );
 
-    // Solo log cada 5 segundos para debug
+    // Solo log cada 10 segundos para evitar spam
     const now = Date.now();
-    if (!lastLogTimeRef.current || now - lastLogTimeRef.current > 5000) {
+    if (!lastLogTimeRef.current || now - lastLogTimeRef.current > 10000) {
       console.log(`🎤 VAD[${instanceIdRef.current}] Status:`, {
         shouldVADBeActive,
+        globalVADActive,
+        globalVADInstanceId,
         isCallActive: state.isCallActive,
         phase: state.phase,
         avatarConnected: state.avatarConnected,
@@ -654,10 +675,10 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       lastLogTimeRef.current = now;
     }
 
-    if (shouldVADBeActive && !vadInstanceRef.current && initializationStateRef.current === 'idle') {
+    if (shouldVADBeActive && !globalVADActive && initializationStateRef.current === 'idle') {
       console.log(`🎤 🟢 VAD[${instanceIdRef.current}] Starting unified VAD`);
       startListening();
-    } else if (!shouldVADBeActive && vadInstanceRef.current && initializationStateRef.current === 'active') {
+    } else if (!shouldVADBeActive && globalVADInstanceId === instanceIdRef.current && initializationStateRef.current === 'active') {
       console.log(`🎤 🔴 VAD[${instanceIdRef.current}] Stopping unified VAD`);
       stopListening();
     }
