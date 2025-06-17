@@ -1,0 +1,104 @@
+¡Parce, aquí lo que toca es “afinar el oído” del VAD para que reconozca tu voz‐voz y no se quede esperando eternamente mientras tú hablas! 👂🔧
+Te dejo el procedimiento express (con snippets) para calibrar sin ensayo-error infinito y, al final, los valores recomendados que suelen funcionar bien en oficinas y cuartos normales en Colombia.
+
+⸻
+
+1 ️⃣ Mide el nivel real de tu micrófono
+	1.	Graba 5 s de silencio absoluto (no hables).
+	2.	Graba 5 s hablando a volumen normal (“Hola, hola, probando…”).
+	3.	Con cualquier lib de audio (p. ej. getUserMedia + AudioContext) calcula el RMS de cada bloque de 20 ms y guarda dos arrays:
+
+const silenceRMS = [];    // 250 valores aprox.
+const speechRMS  = [];    // 250 valores aprox.
+
+
+	4.	Saca:
+
+const noiseFloor   = median(silenceRMS);   // típico 3-8
+const speechPeak   = percentile(speechRMS, 90); // típico 40-70
+const dynamicRange = speechPeak - noiseFloor;
+
+
+
+⛏️  Si no quieres código, ábrete “Voice Memos” en el celular, bájalo como WAV y haz esto en Audacity – te da directo los dB RMS.
+
+⸻
+
+2 ️⃣ Elige los nuevos umbrales
+
+Parámetro	Cómo se calcula	Regla rápida
+voiceThreshold	noiseFloor + dynamicRange × 0.25	Entre 10 – 25 (nunca < 8).
+silenceThreshold	noiseFloor + dynamicRange × 0.05	5 – 10 puntos menos que voiceThreshold.
+consecutiveVoiceFrames	1 o 2 máx.	Baja a 1 si hay huecos al inicio.
+speechEndDelay	250 – 450 ms	1500 ms es eternidad; bájalo.
+minimumSpeechDuration	250 ms	400 ms corta “sí” o “no”.
+
+Tip: Durante ruido de oficina sube voiceThreshold 2-3 puntos; si estás en cuarto silencioso bájalo 2-3.
+
+⸻
+
+3 ️⃣ Actualiza el hook use-voice-activity.ts
+
+export const DEFAULT_VAD_CONFIG = {
+  // --- valores calibrados ---
+  voiceThreshold:        18,   // ruido 6, pico 58  →  (58-6)*0.25 ≈ 13 + 6 ≈ 19
+  silenceThreshold:      10,   // > ruido pero cómodo
+  consecutiveVoiceFrames: 1,   // detecta la 1.ª sílaba
+  speechStartDelay:      120,  // ms
+  speechEndDelay:        350,  // ms
+  minimumSpeechDuration: 250,  // ms
+  frequencyLow:           65,  // abre un poco graves
+  frequencyHigh:        4000,  // deja pasar agudos naturales
+};
+
+Solo cambia esas constantes, compila, y revisa los logs: ahora deberías ver los eventos Speech started y Speech ended.
+
+⸻
+
+4 ️⃣ Agrega un modo “auto-calibración” (opcional pero salva vidas)
+
+export const autoCalibrateVAD = async (): Promise<VADConfig> => {
+  const { noiseFloor, speechPeak } = await quickMicScan(); // 10 s
+  const dyn = speechPeak - noiseFloor;
+  return {
+    ...DEFAULT_VAD_CONFIG,
+    voiceThreshold:   Math.round(noiseFloor + dyn * 0.25),
+    silenceThreshold: Math.round(noiseFloor + dyn * 0.05),
+  };
+};
+
+	•	Pide 10 s al usuario (“qué más, contame algo…”)
+	•	Calcula y setea los valores en runtime.
+	•	Guarda en localStorage para la próxima vez.
+
+⸻
+
+5 ️⃣ Checklist para verificar
+
+✅ Log esperado	Qué indica
+🎤 Starting unified VAD	Se crea una instancia.
+Speech started	Supera voiceThreshold.
+Speech ended	Silencio > speechEndDelay.
+Recorder → start / stop	Hooks disparados al STT.
+Sin “Recording timeout reached”	Time-outs eliminados.
+
+Si todo esto aparece en orden, la cadena completa avatar → escucha → STT → LLM debería tardar < 1 s.
+
+⸻
+
+6 ️⃣ Valores “preset” que suelen ir fino
+
+Para que no quedes varado, te dejo tres presets rápidos:
+
+Entorno	voiceThreshold	silenceThreshold	Observaciones
+Oficina abierta	22	12	Mucho teclado y gente alrededor.
+Sala silenciosa	16	8	Home office normal.
+Cabina / podcast	12	6	Mic de condensador, sin ventilador.
+
+Cámbialos al vuelo: un dropdown en tu modal y listo.
+
+⸻
+
+Listo, parcero
+
+Siguiendo estos pasos el VAD va a “escuchar como es debido” y la grabación arrancará/apagará justo cuando hables o calles. Pruébalo, revisa la consola, y me cuentas si ya detonó el 🚀.
