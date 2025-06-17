@@ -246,8 +246,8 @@ export function NewAvatarModal({
                   stream.getTracks().forEach(track => track.stop());
                   console.log('🎤 Microphone access verified');
                   
-                  // Verificar estado y activar VAD con retry logic mejorado
-                  if (!vad.isListening && isCallActive && !isMuted && avatarState.phase === 'listening') {
+                  // Usar el estado actualizado (updatedState) en lugar del estado obsoleto
+                  if (!vad.isListening && isCallActive && !isMuted && updatedState.phase === 'listening') {
                     console.log('🎤 All conditions met for VAD activation');
                     
                     let retryCount = 0;
@@ -264,6 +264,10 @@ export function NewAvatarModal({
                             console.log('✅ VAD auto-activated successfully and confirmed active');
                           } else {
                             console.warn('⚠️ VAD activation appeared successful but is not listening');
+                            // Intentar reactivar si falló silenciosamente
+                            if (retryCount < maxRetries) {
+                              setTimeout(() => tryActivateVAD(), 500);
+                            }
                           }
                         }, 500);
                         
@@ -285,7 +289,7 @@ export function NewAvatarModal({
                       isListening: vad.isListening,
                       isCallActive,
                       isMuted,
-                      avatarPhase: avatarState.phase
+                      currentPhase: updatedState.phase
                     });
                   }
                 } catch (error) {
