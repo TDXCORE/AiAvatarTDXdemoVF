@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// Configuración optimizada para conversación fluida
+// Configuración VAD calibrada para detección óptima
 const VAD_CONFIG = {
   fftSize: 2048,              // Mejor resolución frecuencial
   smoothingTimeConstant: 0.15, // Más responsivo para conversación
@@ -10,19 +10,19 @@ const VAD_CONFIG = {
   sampleRate: 16000,          // Óptimo para voz
   bufferSize: 4096,           // Buffer más grande para estabilidad
   
-  // Thresholds críticos optimizados para mejor detección
-  voiceThreshold: 15,         // RMS mínimo para detectar voz (menos sensible)
-  silenceThreshold: 6,        // RMS máximo para considerar silencio (más estricto)
+  // Thresholds calibrados según análisis
+  voiceThreshold: 12,         // Más sensible para detectar voz (era 15)
+  silenceThreshold: 8,        // Más estricto para silencio (era 6)
   
-  // Tiempos de estabilización mejorados
-  speechStartDelay: 300,      // ms antes de confirmar inicio de habla (más estable)
-  speechEndDelay: 1500,       // ms de silencio antes de terminar (más paciencia)
+  // Tiempos optimizados para respuesta rápida
+  speechStartDelay: 120,      // Detecta primera sílaba rápido (era 300)
+  speechEndDelay: 350,        // Respuesta más rápida (era 1500)
   cooldownDelay: 1000,        // ms de cooldown después de terminar grabación
-  minimumSpeechDuration: 400, // ms mínimos de habla válida (más permisivo)
+  minimumSpeechDuration: 250, // Permite palabras cortas como "sí", "no" (era 400)
   
-  // Filtros de frecuencia para voz humana
-  voiceFreqMin: 85,           // Hz - frecuencia mínima voz humana
-  voiceFreqMax: 3400,         // Hz - frecuencia máxima voz humana
+  // Filtros de frecuencia ampliados para voz natural
+  voiceFreqMin: 65,           // Incluye más graves (era 85)
+  voiceFreqMax: 4000,         // Incluye más agudos naturales (era 3400)
 };
 
 type VADState = 'idle' | 'detecting' | 'speaking' | 'ending' | 'cooldown';
@@ -164,8 +164,8 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       buffer.confidence.shift();
     }
 
-    // Detección de voz mejorada con mayor precisión
-    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.25;
+    // Detección de voz calibrada con umbrales más permisivos
+    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.20; // Más permisivo (era 0.25)
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
     const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
     
@@ -176,8 +176,8 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       state.consecutiveVoiceFrames++;
       state.consecutiveSilenceFrames = 0;
       
-      // Confirmar inicio de habla con frames mínimos
-      if (!state.isSpeaking && state.consecutiveVoiceFrames >= 2) {
+      // Detectar primera sílaba inmediatamente
+      if (!state.isSpeaking && state.consecutiveVoiceFrames >= 1) { // Era 2, ahora 1
         if (timeoutsRef.current.start) {
           clearTimeout(timeoutsRef.current.start);
         }

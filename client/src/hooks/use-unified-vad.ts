@@ -8,12 +8,12 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
   const { state } = useCallState();
   const vadSingletonRef = useRef<boolean>(false);
 
-  // Single VAD instance with optimized settings
+  // Single VAD instance with calibrated aggressive settings
   const vad = useVoiceActivity({
     sensitivity: 75,
-    speechStartThreshold: 120,  // More aggressive
-    speechEndThreshold: 350,    // Faster response
-    minimumRecordingDuration: 400,
+    speechStartThreshold: 80,   // Más agresivo (era 120)
+    speechEndThreshold: 200,    // Respuesta más rápida (era 350)
+    minimumRecordingDuration: 250, // Permite palabras cortas (era 400)
     autoRecordingEnabled: true,
     continuousListening: true,
     onSpeechStart: () => {
