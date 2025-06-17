@@ -12,12 +12,12 @@ const VAD_CONFIG = {
   sampleRate: 16000,          
   bufferSize: 2048,           
   
-  // Thresholds calibrados según guía quirúrgica
-  voiceThreshold: 7,          // Reducido de 12 → 7 (voces normales 5-9 RMS)
-  silenceThreshold: 4,        // Reducido de 8 → 4 (2-3 puntos bajo voiceThreshold)
+  // Thresholds calibrados para mejor detección de voz
+  voiceThreshold: 4,          // Más sensible para voces normales (2-6 RMS)
+  silenceThreshold: 2,        // Más sensible para detectar silencios
   
-  // Tiempos optimizados según guía
-  speechStartDelay: 80,       // Reducido de 120ms → 80ms (más ágil)
+  // Tiempos optimizados para respuesta inmediata
+  speechStartDelay: 50,       // Más rápido para detección inmediata
   speechEndDelay: 280,        // Reducido de 350ms → 280ms (acelera turnaround)
   cooldownDelay: 200,         // Reducido de 1000ms → 200ms (crítico: evita congelamiento)
   minimumSpeechDuration: 250, // Mantener para palabras cortas
@@ -168,10 +168,23 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       buffer.confidence.shift();
     }
 
-    // Detección de voz calibrada según guía (voiceRatio 0.20 → 0.10)
-    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.10;
+    // Detección de voz más sensible para captar voz normal
+    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.05;
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
     const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
+    
+    // Debug logging cada 30 frames (aproximadamente cada segundo)
+    if (currentTime % 30 === 0) {
+      console.log('🎤 VAD Debug:', {
+        rms: rms.toFixed(2),
+        voiceRatio: voiceRatio.toFixed(3),
+        confidence: overallConfidence.toFixed(3),
+        isVoiceDetected,
+        isSilence,
+        voiceFrames: internalState.consecutiveVoiceFrames,
+        silenceFrames: internalState.consecutiveSilenceFrames
+      });
+    }
     
     const internalState = stateRef.current;
     
@@ -180,14 +193,14 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       internalState.consecutiveVoiceFrames++;
       internalState.consecutiveSilenceFrames = 0;
       
-      // Detectar primera sílaba inmediatamente
+      // Detectar primera sílaba inmediatamente - más agresivo
       if (!internalState.isSpeaking && internalState.consecutiveVoiceFrames >= 1) {
         if (timeoutsRef.current.start) {
           clearTimeout(timeoutsRef.current.start);
         }
         
         timeoutsRef.current.start = setTimeout(() => {
-          if (!internalState.isSpeaking && internalState.consecutiveVoiceFrames >= 2) {
+          if (!internalState.isSpeaking && internalState.consecutiveVoiceFrames >= 1) {
             console.log('🎤 Unified VAD: Speech detected - starting recording');
             internalState.isSpeaking = true;
             internalState.speechStartTime = currentTime;
