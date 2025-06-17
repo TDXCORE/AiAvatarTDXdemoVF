@@ -3,15 +3,15 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
-import { useAudioRecorder } from "@/hooks/use-audio-recorder";
-import { useVoiceActivity } from "@/hooks/use-voice-activity";
+import { useUnifiedVAD } from "@/hooks/use-unified-vad";
 import { useAudioProcessor } from "@/hooks/use-audio-processor";
 import { useToast } from "@/hooks/use-toast";
 import { useTranscriptionState } from "@/hooks/use-transcription-state";
+import { useCallState } from "@/contexts/call-context";
 import { ChatMessage } from "@/types/voice";
 import { MessageBubble } from "../message-bubble";
 import { ConversationTranscript } from "./conversation-transcript";
-import { Mic, MicOff, X, Send, ArrowLeft, MessageSquare, ScrollText } from "lucide-react";
+import { X, Send, ArrowLeft, MessageSquare, ScrollText } from "lucide-react";
 
 interface NewAvatarModalProps {
   isOpen: boolean;
@@ -27,6 +27,8 @@ export function NewAvatarModal({
   onMessageReceived 
 }: NewAvatarModalProps) {
   const { toast } = useToast();
+  const { state: callState, dispatch: callDispatch } = useCallState();
+
   const [avatarState, setAvatarState] = useState<StreamingAvatarState>({
     phase: 'initializing',
     isConnected: false,
@@ -34,8 +36,6 @@ export function NewAvatarModal({
     error: null,
   });
 
-  const [isMuted, setIsMuted] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('09:53');
@@ -47,63 +47,12 @@ export function NewAvatarModal({
   // Hook de transcripción
   const transcription = useTranscriptionState();
 
-  // Voice Activity Detection with automatic activation after avatar speaks
-  const vad = useVoiceActivity({
-    sensitivity: 75,
-    speechStartThreshold: 500,
-    speechEndThreshold: 2000,
-    minimumRecordingDuration: 800,
-    autoRecordingEnabled: true,
-    continuousListening: true,
-    onSpeechStart: () => {
-      console.log('🎤 VAD: Speech detected - starting recording');
-      if (!recorder.isRecording && isCallActive && !isMuted && avatarState.phase === 'listening') {
-        handleStartRecording();
-      }
-    },
-    onSpeechEnd: () => {
-      console.log('🎤 VAD: Speech ended - stopping recording');
-      if (recorder.isRecording && isCallActive) {
-        handleStopRecording();
-      }
-    },
-    onVoiceActivity: (isActive) => {
-      console.log(`🎤 VAD: Voice activity ${isActive ? 'detected' : 'ended'}`);
-    },
-  });
-
-  // Audio Recorder
-  const recorder = useAudioRecorder({
-    onRecordingStart: () => {
-      vad.startListening();
-    },
-    onRecordingStop: async (result) => {
-      vad.stopListening();
-      if (result.audioBlob) {
-        await processAudioMessage(result.audioBlob);
-      }
-    },
-    onError: (errorMessage) => {
-      toast({
-        title: 'Recording Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    },
-  });
-
   // Audio processor hook with enhanced conversation management
   const audioProcessor = useAudioProcessor({
     sessionId,
     language: 'es',
     onUserMessage: (message) => {
       console.log('🗨️ User message processed:', message);
-      
-      // Stop VAD while processing to avoid interference
-      if (vad.isListening) {
-        vad.stopListening();
-        console.log('🛑 VAD paused for processing');
-      }
 
       const userMessage: ChatMessage = {
         id: `msg_${Date.now()}`,
@@ -126,7 +75,7 @@ export function NewAvatarModal({
     },
     onAIResponse: async (response) => {
       console.log('🤖 AI response received:', response);
-      
+
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
@@ -148,25 +97,39 @@ export function NewAvatarModal({
         try {
           setAvatarState(prev => ({ ...prev, phase: 'speaking' }));
           await avatarClientRef.current.speakAgentResponse(response);
-          
-          // VAD will be reactivated automatically by the state change handler
+
           console.log('✅ Response sent to avatar, VAD will reactivate when speaking ends');
-          
+
         } catch (error) {
           console.error('Failed to send response to avatar:', error);
-          
-          // Restart VAD if avatar speaking fails
-          if (isCallActive && !isMuted) {
-            setTimeout(() => {
-              vad.startListening();
-              console.log('🎤 VAD restarted after avatar error');
-            }, 1000);
-          }
         }
       }
 
       onMessageReceived?.('', response);
     },
+  });
+
+  // Unified VAD system
+  const { vad, recorder, isVADActive } = useUnifiedVAD(async (audioBlob: Blob) => {
+    if (!avatarClientRef.current?.isReady()) {
+      console.warn('No active avatar session for audio processing');
+      return;
+    }
+
+    try {
+      await audioProcessor.processAudioMessage(
+        audioBlob, 
+        true,
+        avatarClientRef.current.getSessionToken()
+      );
+    } catch (error) {
+      console.error('Error processing audio message:', error);
+      toast({
+        title: 'Processing Error',
+        description: error instanceof Error ? error.message : 'Failed to process audio',
+        variant: 'destructive',
+      });
+    }
   });
 
   useEffect(() => {
@@ -192,7 +155,7 @@ export function NewAvatarModal({
 
   // Timer effect
   useEffect(() => {
-    if (isCallActive) {
+    if (callState.isCallActive) {
       const timer = setInterval(() => {
         setTimeRemaining(prev => {
           const [minutes, seconds] = prev.split(':').map(Number);
@@ -208,87 +171,10 @@ export function NewAvatarModal({
 
       return () => clearInterval(timer);
     }
-  }, [isCallActive]);
+  }, [callState.isCallActive]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Avatar event handlers for VAD control
-  const handleAvatarStartTalking = () => {
-    console.log('🎤 Avatar started talking - stopping VAD');
-    if (vad.isListening) {
-      vad.stopListening();
-      console.log('🛑 VAD stopped while avatar is speaking');
-    }
-  };
-
-  const handleAvatarStopTalking = () => {
-    console.log('🔇 Avatar stopped talking - will auto-activate VAD');
-    
-    // Auto-activate VAD after avatar finishes speaking
-    if (isCallActive && !isMuted) {
-      console.log('🎤 Scheduling VAD auto-activation in 1.5 seconds...');
-      setTimeout(() => {
-        autoActivateVAD();
-      }, 1500);
-    } else {
-      console.log('🎤 VAD auto-activation skipped due to call state:', {
-        isCallActive,
-        isMuted
-      });
-    }
-  };
-
-  // Automatic VAD activation function
-  const autoActivateVAD = async () => {
-    console.log('🎤 Auto-activating VAD after avatar finished speaking...');
-    
-    try {
-      // Verificar que las condiciones son correctas
-      if (isCallActive && !isMuted && avatarState.phase === 'listening') {
-        console.log('🎤 Conditions met for auto-activation - starting VAD');
-        
-        // Parar VAD actual si está activo
-        if (vad.isListening) {
-          vad.stopListening();
-          console.log('🛑 Stopped current VAD for restart');
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-        
-        // Iniciar VAD
-        await vad.startListening();
-        console.log('🎤 VAD auto-activated and ready to listen');
-        
-        // Verificar después de un momento que está funcionando
-        setTimeout(() => {
-          if (vad.isListening) {
-            console.log('✅ VAD auto-activation confirmed - now listening automatically');
-          } else {
-            console.warn('⚠️ VAD auto-activation failed - trying manual restart');
-            // Retry una vez más
-            setTimeout(async () => {
-              try {
-                await vad.startListening();
-                console.log('🔄 VAD manual restart after auto-activation failure');
-              } catch (error) {
-                console.error('❌ VAD manual restart failed:', error);
-              }
-            }, 500);
-          }
-        }, 1000);
-        
-      } else {
-        console.log('🎤 VAD auto-activation skipped - conditions not met:', {
-          isCallActive,
-          isMuted,
-          avatarPhase: avatarState.phase,
-          vadListening: vad.isListening
-        });
-      }
-    } catch (error) {
-      console.error('❌ VAD auto-activation failed:', error);
-    }
   };
 
   const initializeAvatarSession = async () => {
@@ -306,35 +192,21 @@ export function NewAvatarModal({
         avatarClientRef.current = null;
       }
 
-      // Initialize StreamingAvatar client with direct event listening
+      // Initialize StreamingAvatar client with call context integration
       avatarClientRef.current = new StreamingAvatarClient((newState) => {
         setAvatarState(prev => {
           const updatedState = { ...prev, ...newState };
-          
+
           // Log state changes for debugging
           console.log('🎭 Avatar state changed:', {
             phase: newState.phase,
             isConnected: newState.isConnected,
             prevPhase: prev.phase
           });
-          
+
           return updatedState;
         });
-      });
-
-      // Listen for avatar events to automatically control VAD
-      if (avatarClientRef.current) {
-        const avatarElement = videoRef.current;
-        if (avatarElement) {
-          // Clean up existing listeners
-          avatarElement.removeEventListener('avatar_start_talking', handleAvatarStartTalking);
-          avatarElement.removeEventListener('avatar_stop_talking', handleAvatarStopTalking);
-          
-          // Add new listeners
-          avatarElement.addEventListener('avatar_start_talking', handleAvatarStartTalking);
-          avatarElement.addEventListener('avatar_stop_talking', handleAvatarStopTalking);
-        }
-      }
+      }, callDispatch);
 
       // Initialize with video element
       await avatarClientRef.current.initialize(videoRef.current);
@@ -350,31 +222,6 @@ export function NewAvatarModal({
         error: error instanceof Error ? error.message : 'Connection failed',
         isConnected: false
       }));
-    }
-  };
-
-  const processAudioMessage = async (audioBlob: Blob) => {
-    if (!avatarClientRef.current?.isReady()) {
-      console.warn('No active avatar session for audio processing');
-      return;
-    }
-
-    try {
-      setAvatarState(prev => ({ ...prev, phase: 'listening' }));
-
-      await audioProcessor.processAudioMessage(
-        audioBlob, 
-        true,
-        avatarClientRef.current.getSessionToken()
-      );
-
-    } catch (error) {
-      console.error('Error processing audio message:', error);
-      toast({
-        title: 'Processing Error',
-        description: error instanceof Error ? error.message : 'Failed to process audio',
-        variant: 'destructive',
-      });
     }
   };
 
@@ -421,7 +268,10 @@ export function NewAvatarModal({
     if (!avatarClientRef.current) return;
 
     try {
-      setIsCallActive(true);
+      // Update call context
+      callDispatch({ type: 'SET_CALL_ACTIVE', active: true });
+      callDispatch({ type: 'SET_PHASE', phase: 'speaking' });
+
       setAvatarState(prev => ({ ...prev, phase: 'speaking', isConnected: true }));
 
       // Request microphone permission
@@ -454,41 +304,11 @@ export function NewAvatarModal({
     }
   };
 
-  const handleStartRecording = () => {
-    if (!isMuted && isCallActive) {
-      recorder.startRecording();
-    }
-  };
-
-  const handleStopRecording = () => {
-    if (recorder.isRecording) {
-      recorder.stopRecording();
-    }
-  };
-
   const cleanup = async () => {
     console.log('🧹 Cleaning up avatar session...');
-    
-    // Reset call state first
-    setIsCallActive(false);
-    
-    // Clean up event listeners
-    if (videoRef.current) {
-      videoRef.current.removeEventListener('avatar_start_talking', handleAvatarStartTalking);
-      videoRef.current.removeEventListener('avatar_stop_talking', handleAvatarStopTalking);
-    }
-    
-    // Parar todas las actividades de audio
-    vad.stopListening();
-    recorder.cancelRecording();
 
-    // Limpiar recursos de audio específicamente
-    try {
-      const streams = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streams.getTracks().forEach(track => track.stop());
-    } catch (error) {
-      // Ignorar errores de limpieza de streams
-    }
+    // Reset call state first
+    callDispatch({ type: 'RESET' });
 
     if (avatarClientRef.current) {
       try {
@@ -506,7 +326,7 @@ export function NewAvatarModal({
       sessionToken: null,
       error: null,
     });
-    
+
     console.log('✅ Cleanup completed');
   };
 
@@ -601,17 +421,17 @@ export function NewAvatarModal({
           )}
 
           {/* Status overlays */}
-          {avatarState.phase === 'speaking' && (
+          {callState.phase === 'speaking' && (
             <div className="absolute bottom-20 left-4 bg-blue-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
               <div className="w-3 h-3 bg-white rounded-full animate-bounce mr-2"></div>
               Doctor is speaking...
             </div>
           )}
 
-          {avatarState.phase === 'listening' && (
+          {callState.phase === 'listening' && (
             <div className="absolute bottom-20 left-4 bg-green-500 text-white px-4 py-2 rounded-full text-sm flex items-center">
               <div className="w-3 h-3 bg-white rounded-full animate-pulse mr-2"></div>
-              Listening...
+              Listening automatically...
             </div>
           )}
 
@@ -626,34 +446,6 @@ export function NewAvatarModal({
 
         {/* Bottom Controls */}
         <div className="bg-black p-4 relative z-10">
-          <div className="flex items-center justify-center space-x-4 mb-4">
-            {/* Voice Recording Button */}
-            <Button
-              variant={recorder.isRecording ? "destructive" : "outline"}
-              size="icon"
-              className="w-12 h-12 rounded-full bg-white text-black hover:bg-gray-100"
-              onMouseDown={handleStartRecording}
-              onMouseUp={handleStopRecording}
-              onMouseLeave={handleStopRecording}
-              onTouchStart={handleStartRecording}
-              onTouchEnd={handleStopRecording}
-              disabled={isMuted || audioProcessor.isProcessing || !isCallActive || !ready}
-            >
-              {recorder.isRecording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            </Button>
-
-            {/* Chat Button */}
-            <Button
-              variant="outline"
-              size="icon"
-              className={`w-12 h-12 rounded-full ${textInput.trim() ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-white text-black hover:bg-gray-100'} transition-colors`}
-              onClick={() => textInput.trim() && handleSendText(textInput)}
-              disabled={!textInput.trim() || !ready || audioProcessor.isProcessing}
-            >
-              <MessageSquare className="h-5 w-5" />
-            </Button>
-          </div>
-
           {/* Text Input */}
           <div className="flex space-x-2">
             <Input
@@ -690,30 +482,28 @@ export function NewAvatarModal({
             {!audioProcessor.isProcessing && (
               <div className="text-white/70">
                 {avatarState.phase === 'initializing' && "Conectando con el Dr. Mendoza..."}
-                {avatarState.phase === 'ready' && !isCallActive && "Listo para comenzar la conversación"}
-                {avatarState.phase === 'ready' && isCallActive && "Conversación activa - Habla naturalmente o usa el chat"}
-                {avatarState.phase === 'listening' && !recorder.isRecording && vad.isListening && (
+                {avatarState.phase === 'ready' && !callState.isCallActive && "Listo para comenzar la conversación"}
+                {avatarState.phase === 'ready' && callState.isCallActive && "Conversación activa - Habla naturalmente o usa el chat"}
+                {callState.phase === 'listening' && !recorder.isRecording && isVADActive && (
                   <span className="flex items-center justify-center space-x-2">
                     <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                     <span>Escuchando automáticamente - Solo habla</span>
                   </span>
                 )}
-                {avatarState.phase === 'listening' && !recorder.isRecording && !vad.isListening && "Activando detección de voz..."}
-                {avatarState.phase === 'listening' && recorder.isRecording && (
+                {callState.phase === 'listening' && !recorder.isRecording && !isVADActive && "Activando detección de voz..."}
+                {callState.phase === 'listening' && recorder.isRecording && (
                   <span className="flex items-center justify-center space-x-2">
                     <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
                     <span>Grabando... {recorder.recordingDuration}s</span>
                   </span>
                 )}
-                {avatarState.phase === 'speaking' && (
+                {callState.phase === 'speaking' && (
                   <span className="flex items-center justify-center space-x-2">
                     <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
                     <span>El Dr. Mendoza está respondiendo...</span>
                   </span>
                 )}
                 {avatarState.phase === 'error' && "Error de conexión - Intenta nuevamente"}
-                {vad.vadState === 'detecting' && avatarState.phase === 'listening' && "🎤 Detectando actividad de voz..."}
-                {vad.vadState === 'speaking' && "🎤 Reconociendo tu mensaje..."}
               </div>
             )}
           </div>

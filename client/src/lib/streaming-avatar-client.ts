@@ -17,9 +17,11 @@ export class StreamingAvatarClient {
   private sessionToken: string | null = null;
   private videoElement: HTMLVideoElement | null = null;
   private onStateChange?: (state: Partial<StreamingAvatarState>) => void;
+  private callDispatch?: React.Dispatch<any>;
 
-  constructor(onStateChange?: (state: Partial<StreamingAvatarState>) => void) {
+  constructor(onStateChange?: (state: Partial<StreamingAvatarState>) => void, callDispatch?: React.Dispatch<any>) {
     this.onStateChange = onStateChange;
+    this.callDispatch = callDispatch;
   }
 
   async initialize(videoElement: HTMLVideoElement): Promise<void> {
@@ -126,6 +128,9 @@ export class StreamingAvatarClient {
         phase: 'ready', 
         isConnected: true 
       });
+      
+      // Update call context
+      this.callDispatch?.({ type: 'SET_AVATAR_CONNECTED', connected: true });
     });
 
     this.streamingAvatar.on(StreamingEvents.STREAM_DISCONNECTED, () => {
@@ -140,6 +145,9 @@ export class StreamingAvatarClient {
     this.streamingAvatar.on(StreamingEvents.AVATAR_START_TALKING, (event) => {
       console.log('🎤 Avatar started talking:', event);
       this.onStateChange?.({ phase: 'speaking' });
+      
+      // Update call context
+      this.callDispatch?.({ type: 'SET_PHASE', phase: 'speaking' });
 
       // Emit custom event for VAD control
       if (this.videoElement) {
@@ -150,6 +158,11 @@ export class StreamingAvatarClient {
     this.streamingAvatar.on(StreamingEvents.AVATAR_STOP_TALKING, (event) => {
       console.log('🔇 Avatar stopped talking:', event);
       this.onStateChange?.({ phase: 'listening' });
+      
+      // Update call context with delay to ensure proper state transition
+      setTimeout(() => {
+        this.callDispatch?.({ type: 'SET_PHASE', phase: 'listening' });
+      }, 100);
 
       // Emit custom event for VAD control with delay to ensure state is updated
       if (this.videoElement) {
