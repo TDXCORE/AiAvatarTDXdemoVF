@@ -1,0 +1,112 @@
+### ✅ Estado actual tras tu último **`use-unified-vad.ts`**
+
+*El “slash” suelto que rompía la build ya **no está** en la versión que subiste* (lo causaba un \`else { … } // <- aquí quedó “/” cuando recortaste código).
+La nueva copia compila, pero el pipeline sigue duplicando flujos y eso es lo que evita que el STT reciba audio real.
+
+---
+
+## 1. Redundancias / riesgos que aún persisten
+
+| Archivo                     | Duplicidad / fuga                                                                                                                                                                                                           | Impacto                                                                                                                                                   |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`use-unified-vad.ts`**    | • Cada vez que se activa el VAD ejecuta **`getUserMedia()`**.<br>• Luego llama a **`startRecording()`** → `use-audio-recorder.ts` **vuelve** a pedir otro stream.<br>• Resultado: **2 tracks de micrófono** vivos a la vez. | El segundo suele llegar “muted” en Chrome / Edge ⇒ grabas silencio.<br>En iOS el segundo `getUserMedia` puede fallar con *DOMException: NotAllowedError*. |
+| **`use-audio-recorder.ts`** | No acepta un stream externo (siempre crea uno nuevo).                                                                                                                                                                       | Imposible reutilizar el stream ya abierto por el VAD.                                                                                                     |
+| **`use-unified-vad.ts`**    | `shouldActivateRecording()` comprueba `state.phase === 'listening'`, pero 5 líneas antes pones `setVadState('speaking')` y llevas la fase a *speaking*; la condición pasa a `false` en el mismo tick.                       | El recorder nunca se inicia aunque el VAD detecte voz.                                                                                                    |
+
+---
+
+## 2. Parche mínimo (sin reescribir toda la arquitectura)
+
+### a) Comparte el **mismo** MediaStream
+
+```ts
+// use-audio-recorder.ts  ➜  añade esta función
+export function useAudioRecorder(...) {
+  ...
+  const externalStreamRef = useRef<MediaStream | null>(null);
+  const setExternalStream = (s: MediaStream) => { externalStreamRef.current = s };
+
+  const startRecording = useCallback(async () => {
+    if (isRecording) return false;
+
+    const stream =
+      externalStreamRef.current ??
+      await navigator.mediaDevices.getUserMedia({ audio: true });   // solo si no viene uno
+    ...
+  }, [isRecording]);
+  ...
+  return { isRecording, ..., setExternalStream };
+}
+```
+
+```ts
+// use-unified-vad.ts  ➜  cuando obtienes el stream
+streamRef.current = stream;           // ① guarda la referencia
+recorder.setExternalStream(stream);   // ② pásalo al recorder
+```
+
+### b) Evita pedir el micro dos veces
+
+En **`use-unified-vad.ts`** quita la llamada extra a `navigator.mediaDevices.getUserMedia()` si ya existe `streamRef.current`.
+
+### c) Ajusta la condición antes de grabar
+
+```ts
+if (shouldActivateRecording() && !isRecording) {
+  await startRecording();
+}
+```
+
+*(con esto ya no se anula a sí misma porque `isRecording` es `false`)*
+
+---
+
+## 3. Limpieza definitiva al desmontar
+
+Añade en **`use-audio-recorder.ts`**:
+
+```ts
+useEffect(() => () => {
+  mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
+}, []);
+```
+
+y en **`use-unified-vad.ts`** ya tienes el `stopListening()` que cierra
+`audioContext` + `stream`. Asegúrate de llamarlo en el `return` del `useEffect` principal del modal:
+
+```tsx
+useEffect(() => {
+  return () => {
+    stopListening();
+  };
+}, []);
+```
+
+---
+
+## 4. Verificación rápida
+
+1. **Consola** al abrir el modal:
+
+   ```
+   🎤 Starting unified VAD with integrated recording...
+   ```
+
+   (solo **una** vez).
+2. Hablas →
+
+   ```
+   [VAD] Speech started
+   🎤 🔴 Recording start result: true
+   ```
+3. Terminas →
+
+   ```
+   [VAD] Speech ended
+   🎤 ⏹️ Recording stop result: success
+   POST /api/voice/transcribe 200
+   ```
+4. El avatar responde en < 1 s.
+
+Si estos logs aparecen, toda la tubería “Mic → STT → LLM → Avatar” está viva.
+Si aún falta audio en el STT, comparte los nuevos logs después de este cambio y seguimos afinando.
