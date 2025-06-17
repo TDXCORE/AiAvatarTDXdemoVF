@@ -131,7 +131,10 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
 
   // Análisis inteligente de actividad de voz
   const analyzeVoiceActivity = useCallback(() => {
-    if (!analyserRef.current) return;
+    if (!analyserRef.current || !isListening) {
+      console.log('🎤 VAD analysis skipped - not ready or not listening');
+      return;
+    }
 
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -236,9 +239,11 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       }
     }
 
-    // Continuar análisis si está escuchando
-    if (isListening) {
+    // Continuar análisis si está escuchando y el contexto es válido
+    if (isListening && analyserRef.current && audioContextRef.current?.state === 'running') {
       animationFrameRef.current = requestAnimationFrame(analyzeVoiceActivity);
+    } else if (isListening && (!analyserRef.current || audioContextRef.current?.state !== 'running')) {
+      console.warn('🎤 VAD analysis stopped - invalid audio context or analyser');
     }
   }, [
     sensitivity,
@@ -323,7 +328,10 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       
       // Iniciar análisis después de un breve delay
       setTimeout(() => {
-        analyzeVoiceActivity();
+        if (isListening) {
+          analyzeVoiceActivity();
+          console.log('🎤 VAD analysis loop started');
+        }
       }, 100);
       
       console.log('🎤 VAD initialized successfully');
