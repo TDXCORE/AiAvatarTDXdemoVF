@@ -1,0 +1,62 @@
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: false, isMuted: false, phase: "idle", avatarConnected: false, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: false, isMuted: false, phase: "idle", avatarConnected: false, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: false, isMuted: false, phase: "idle", avatarConnected: false, …}
+🎬 Iniciando sesión de avatar...
+🚀 Inicializando StreamingAvatar...
+🔑 Obteniendo token...
+🎭 Avatar state changed: 
+Object {phase: "initializing", isConnected: undefined, prevPhase: "initializing"}
+✅ Token obtenido exitosamente
+🎭 Avatar state changed: 
+Object {phase: undefined, isConnected: undefined, prevPhase: "initializing"}
+🎭 Creando instancia de StreamingAvatar...
+🎬 Iniciando avatar...
+🎭 Avatar state changed: 
+Object {phase: "connecting", isConnected: undefined, prevPhase: "initializing"}
+🎥 Stream ready: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "ready", isConnected: true, prevPhase: "connecting"}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: false, isMuted: false, phase: "idle", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: false, isMuted: false, phase: "idle", avatarConnected: true, …}
+🎉 StreamingAvatar initialized successfully
+🎤 Microphone permissions granted for call
+🎤 Sending initial greeting...
+🎤 Enviando respuesta del agente: "¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?"
+🎭 Avatar state changed: 
+Object {phase: "speaking", isConnected: undefined, prevPhase: "speaking"}
+✅ Agent response sent to avatar successfully
+🎤 Avatar started talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "speaking", isConnected: undefined, prevPhase: "speaking"}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: true, isMuted: false, phase: "speaking", avatarConnected: true, …}
+🔇 Avatar stopped talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "listening", isConnected: undefined, prevPhase: "speaking"}
+🎤 🟢 Starting unified VAD
+🎤 Starting unified VAD with integrated recording...
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 🟢 Starting unified VAD
+🎤 Starting unified VAD with integrated recording...
+🎤 Audio stream obtained for unified VAD
+🎤 ✅ Unified VAD initialized successfully
+🎤 Audio stream obtained for unified VAD
+🎤 ✅ Unified VAD initialized successfully
+🎤 ✅ Unified VAD analysis loop started
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
