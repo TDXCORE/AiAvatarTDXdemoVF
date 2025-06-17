@@ -4,20 +4,20 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // Configuración optimizada para conversación fluida
 const VAD_CONFIG = {
   fftSize: 2048,              // Mejor resolución frecuencial
-  smoothingTimeConstant: 0.2,  // Más suave para evitar fluctuaciones
-  minDecibels: -60,           // Más sensible a audio bajo
+  smoothingTimeConstant: 0.15, // Más responsivo para conversación
+  minDecibels: -55,           // Más sensible para conversación natural
   maxDecibels: -10,           // Rango dinámico amplio
   sampleRate: 16000,          // Óptimo para voz
   bufferSize: 4096,           // Buffer más grande para estabilidad
   
-  // Thresholds críticos
-  voiceThreshold: 15,         // RMS mínimo para detectar voz
-  silenceThreshold: 8,        // RMS máximo para considerar silencio
+  // Thresholds críticos optimizados
+  voiceThreshold: 12,         // RMS mínimo para detectar voz (más sensible)
+  silenceThreshold: 6,        // RMS máximo para considerar silencio (más estricto)
   
-  // Tiempos de estabilización
-  speechStartDelay: 150,      // ms antes de confirmar inicio de habla
-  speechEndDelay: 1200,       // ms de silencio antes de terminar
-  minimumSpeechDuration: 500, // ms mínimos de habla válida
+  // Tiempos de estabilización mejorados
+  speechStartDelay: 100,      // ms antes de confirmar inicio de habla (más rápido)
+  speechEndDelay: 1500,       // ms de silencio antes de terminar (más paciencia)
+  minimumSpeechDuration: 400, // ms mínimos de habla válida (más permisivo)
   
   // Filtros de frecuencia para voz humana
   voiceFreqMin: 85,           // Hz - frecuencia mínima voz humana
@@ -160,9 +160,10 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       buffer.confidence.shift();
     }
 
-    // Detección de voz mejorada
-    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.3;
+    // Detección de voz mejorada con mayor precisión
+    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.25;
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
+    const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
     
     const state = stateRef.current;
     
@@ -171,14 +172,14 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       state.consecutiveVoiceFrames++;
       state.consecutiveSilenceFrames = 0;
       
-      // Confirmar inicio de habla con delay
-      if (!state.isSpeaking && state.consecutiveVoiceFrames > 3) {
+      // Confirmar inicio de habla con frames mínimos
+      if (!state.isSpeaking && state.consecutiveVoiceFrames >= 2) {
         if (timeoutsRef.current.start) {
           clearTimeout(timeoutsRef.current.start);
         }
         
         timeoutsRef.current.start = setTimeout(() => {
-          if (!state.isSpeaking) {
+          if (!state.isSpeaking && state.consecutiveVoiceFrames >= 2) {
             console.log('🎤 Speech confirmed - starting recording');
             state.isSpeaking = true;
             state.speechStartTime = currentTime;
@@ -189,12 +190,16 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
         }, speechStartThreshold);
       }
       
-    } else if (isSilence) {
+    } else if (isSilence || isAmbientNoise) {
       state.consecutiveSilenceFrames++;
-      state.consecutiveVoiceFrames = 0;
       
-      // Confirmar final de habla con delay más largo
-      if (state.isSpeaking && state.consecutiveSilenceFrames > 5) {
+      // Solo reducir frames de voz si hay silencio real
+      if (isSilence) {
+        state.consecutiveVoiceFrames = Math.max(0, state.consecutiveVoiceFrames - 1);
+      }
+      
+      // Confirmar final de habla con más paciencia
+      if (state.isSpeaking && state.consecutiveSilenceFrames >= 8) {
         const silenceDuration = currentTime - state.lastVoiceTime;
         const speechDuration = currentTime - state.speechStartTime;
         
@@ -213,10 +218,12 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
               
               // Cooldown breve antes de volver a detectar
               setTimeout(() => {
-                setVadState('detecting');
-              }, 300);
+                if (isListening) {
+                  setVadState('detecting');
+                }
+              }, 200);
             }
-          }, 100);
+          }, 50);
         }
       }
     }
