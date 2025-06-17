@@ -134,17 +134,13 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         return false;
       }
 
-      const hasPermission = await AudioUtils.checkMicrophonePermission();
-      if (!hasPermission) {
-        console.error('🎤 Microphone permission denied');
-        return false;
-      }
+      // Skip permission check since VAD stream is already active
+      console.log('🎤 🔴 Starting recording with shared VAD stream - no new getUserMedia needed');
 
-      console.log('🎤 🔴 Starting recording with shared VAD stream');
-
+      // 🔥 FIX: Pass existing VAD stream to prevent duplicate MediaStream creation
       const recorder = await AudioUtils.startRecording(streamRef.current);
       if (!recorder) {
-        console.error('🎤 Failed to create MediaRecorder');
+        console.error('🎤 Failed to create MediaRecorder with shared stream');
         return false;
       }
 
@@ -344,11 +340,20 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
               confidence: overallConfidence.toFixed(3),
               consecutiveFrames: internalState.consecutiveVoiceFrames
             });
+
+            // 🔥 FIX: Check recording condition BEFORE changing state
+            const canStartRecording = shouldActivateRecording();
+            
             internalState.isSpeaking = true;
             internalState.speechStartTime = currentTime;
             setVadState('speaking');
 
-            if (shouldActivateRecording()) {
+            if (canStartRecording) {
+              console.log('🎤 📡 Using shared stream for recording:', {
+                streamId: streamRef.current?.id,
+                tracksActive: streamRef.current?.getTracks().length,
+                trackStates: streamRef.current?.getTracks().map(t => t.readyState)
+              });
               const recordingStarted = await startRecording();
               console.log('🎤 🔴 Recording start result:', recordingStarted);
             } else {
@@ -404,8 +409,13 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
               setVadState('ending');
 
               if (isRecording) {
+                console.log('🎤 📡 Stopping recording with shared stream - keeping VAD stream alive');
                 const stopResult = await stopRecording();
                 console.log('🎤 ⏹️ Recording stop result:', stopResult ? 'success' : 'failed');
+                console.log('🎤 🔄 VAD stream still active:', {
+                  streamId: streamRef.current?.id,
+                  tracksActive: streamRef.current?.getTracks().length
+                });
               } else {
                 console.log('🎤 ⚠️ Recorder was not recording when VAD ended');
               }
@@ -458,7 +468,9 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
 
       // Verificar que no hay streams previos activos
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        const oldTracks = streamRef.current.getTracks();
+        console.log('🎤 Cleaning up old stream with', oldTracks.length, 'tracks');
+        oldTracks.forEach(track => track.stop());
         streamRef.current = null;
       }
 
@@ -473,7 +485,14 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         }
       });
 
-      console.log('🎤 Audio stream obtained for unified VAD');
+      const tracks = stream.getAudioTracks();
+      console.log('🎤 ✅ Single audio stream obtained for unified VAD:', {
+        streamId: stream.id,
+        tracksCount: tracks.length,
+        trackId: tracks[0]?.id,
+        trackState: tracks[0]?.readyState,
+        settings: tracks[0]?.getSettings()
+      });
 
       // Verificar que el stream es válido y tiene tracks activos
       const audioTracks = stream.getAudioTracks();
@@ -573,9 +592,14 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       recordingTimeoutRef.current = null;
     }
 
-    // Cerrar stream
+    // Cerrar stream - asegurar cleanup completo
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      const tracks = streamRef.current.getTracks();
+      console.log('🛑 Closing unified stream with', tracks.length, 'tracks');
+      tracks.forEach(track => {
+        console.log('🛑 Stopping track:', track.id, track.readyState);
+        track.stop();
+      });
       streamRef.current = null;
     }
 
