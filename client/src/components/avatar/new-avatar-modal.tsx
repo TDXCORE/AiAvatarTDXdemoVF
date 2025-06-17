@@ -109,7 +109,7 @@ export function NewAvatarModal({
     },
   });
 
-  // Unified VAD system
+  // Unified VAD system with integrated recording
   const { vad, recorder, isVADActive } = useUnifiedVAD(async (audioBlob: Blob) => {
     if (!avatarClientRef.current?.isReady()) {
       console.warn('No active avatar session for audio processing');

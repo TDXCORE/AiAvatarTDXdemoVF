@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCallState } from '@/contexts/call-context';
-import { useAudioRecorder } from './use-audio-recorder';
+import { AudioUtils } from '@/lib/audio-utils';
+import { AudioRecordingResult } from '@/types/voice';
 
 // Configuración VAD calibrada según guía quirúrgica
 const VAD_CONFIG = {
@@ -38,19 +39,31 @@ interface VADBuffer {
 
 export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<void>) => {
   const { state } = useCallState();
-  const vadSingletonRef = useRef<boolean>(false);
-  const initializationLockRef = useRef<boolean>(false);
+
+  // 🔥 CONTROL SINGLETON MEJORADO - Evita doble inicialización
+  const initializationStateRef = useRef<'idle' | 'initializing' | 'active' | 'stopping'>('idle');
+  const vadInstanceRef = useRef<boolean>(false);
 
   // Estados VAD internos
   const [isListening, setIsListening] = useState(false);
   const [vadState, setVadState] = useState<VADState>('idle');
   const [confidence, setConfidence] = useState(0);
   
+  // 🎤 Estados de Recording integrados
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const timeoutsRef = useRef<{ start?: NodeJS.Timeout; end?: NodeJS.Timeout }>({});
+  
+  // Recording refs integrados
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
   
   // Buffer para análisis avanzado
   const bufferRef = useRef<VADBuffer>({
@@ -112,32 +125,149 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     return validSamples > 0 ? Math.sqrt(sum / validSamples) : 0;
   }, []);
 
-  // Single recorder instance with shared stream support
-  const recorder = useAudioRecorder({
-    onRecordingStop: async (result) => {
-      if (result.audioBlob) {
-        await onAudioProcessed(result.audioBlob);
+  // 🎤 FUNCIONES DE RECORDING INTEGRADAS
+  const startRecording = useCallback(async (): Promise<boolean> => {
+    try {
+      if (isRecording || !streamRef.current) {
+        console.log('🎤 Recording already active or no stream available');
+        return false;
       }
-    },
-    onError: (error) => {
-      console.error('Unified VAD recording error:', error);
-    },
-    useExternalStream: true, // Usar stream externo del VAD
-  });
 
-  const shouldActivateRecording = () => {
+      const hasPermission = await AudioUtils.checkMicrophonePermission();
+      if (!hasPermission) {
+        console.error('🎤 Microphone permission denied');
+        return false;
+      }
+
+      console.log('🎤 🔴 Starting recording with shared VAD stream');
+      
+      const recorder = await AudioUtils.startRecording(streamRef.current);
+      if (!recorder) {
+        console.error('🎤 Failed to create MediaRecorder');
+        return false;
+      }
+
+      mediaRecorderRef.current = recorder;
+      startTimeRef.current = Date.now();
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      // Update duration every second
+      durationIntervalRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setRecordingDuration(elapsed);
+      }, 1000);
+
+      // Timeout de seguridad (30 segundos)
+      recordingTimeoutRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          console.warn('⚠️ Recording timeout reached, stopping...');
+          stopRecording();
+        }
+      }, 30000);
+
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to start recording:', error);
+      return false;
+    }
+  }, [isRecording]);
+
+  const stopRecording = useCallback(async (): Promise<AudioRecordingResult | null> => {
+    if (!isRecording || !mediaRecorderRef.current) {
+      console.log('🎤 No active recording to stop');
+      return null;
+    }
+
+    try {
+      console.log('🎤 ⏹️ Stopping recording');
+      setIsRecording(false);
+
+      if (durationIntervalRef.current) {
+        clearInterval(durationIntervalRef.current);
+        durationIntervalRef.current = null;
+      }
+
+      if (recordingTimeoutRef.current) {
+        clearTimeout(recordingTimeoutRef.current);
+        recordingTimeoutRef.current = null;
+      }
+
+      const audioBlob = await AudioUtils.stopRecording();
+      if (!audioBlob) {
+        console.error('🎤 Failed to get audio blob');
+        return null;
+      }
+
+      // Validate recording quality
+      if (audioBlob.size < 1000) {
+        console.warn('🎤 Recording too short');
+        return null;
+      }
+
+      const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+      console.log('🎤 ✅ Recording completed:', {
+        size: audioBlob.size,
+        duration: duration,
+        type: audioBlob.type
+      });
+
+      const result: AudioRecordingResult = {
+        audioBlob,
+        duration,
+      };
+
+      mediaRecorderRef.current = null;
+      setRecordingDuration(0);
+
+      // Process audio through callback
+      await onAudioProcessed(audioBlob);
+
+      return result;
+    } catch (error) {
+      console.error('❌ Failed to stop recording:', error);
+      return null;
+    }
+  }, [isRecording, onAudioProcessed]);
+
+  const cancelRecording = useCallback(async () => {
+    if (!isRecording) return;
+
+    console.log('🎤 🚫 Cancelling recording');
+    setIsRecording(false);
+
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
+    }
+
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
+    }
+
+    if (mediaRecorderRef.current?.stream) {
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+
+    mediaRecorderRef.current = null;
+    setRecordingDuration(0);
+  }, [isRecording]);
+
+  const shouldActivateRecording = useCallback(() => {
     return (
       state.isCallActive &&
       !state.isMuted &&
       state.phase === 'listening' &&
       state.avatarConnected &&
-      !recorder.isRecording
+      !isRecording
     );
-  };
+  }, [state.isCallActive, state.isMuted, state.phase, state.avatarConnected, isRecording]);
 
   // Análisis inteligente de actividad de voz
   const analyzeVoiceActivity = useCallback(() => {
-    if (!analyserRef.current || !isListening) {
+    if (!analyserRef.current || !isListening || initializationStateRef.current !== 'active') {
       return;
     }
 
@@ -186,7 +316,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         voiceFrames: internalState.consecutiveVoiceFrames,
         silenceFrames: internalState.consecutiveSilenceFrames,
         vadState,
-        recorderStatus: recorder.isRecording ? 'recording' : 'idle',
+        recorderStatus: isRecording ? 'recording' : 'idle',
         streamActive: streamRef.current ? 'active' : 'inactive'
       });
     }
@@ -218,7 +348,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
             setVadState('speaking');
             
             if (shouldActivateRecording()) {
-              const recordingStarted = await recorder.startRecording();
+              const recordingStarted = await startRecording();
               console.log('🎤 🔴 Recording start result:', recordingStarted);
             } else {
               console.log('🎤 ⚠️ Recording not activated:', {
@@ -226,7 +356,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
                 isMuted: state.isMuted,
                 phase: state.phase,
                 avatarConnected: state.avatarConnected,
-                recorderBusy: recorder.isRecording
+                recorderBusy: isRecording
               });
             }
           }
@@ -264,8 +394,8 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
               internalState.isSpeaking = false;
               setVadState('ending');
               
-              if (recorder.isRecording) {
-                const stopResult = await recorder.stopRecording();
+              if (isRecording) {
+                const stopResult = await stopRecording();
                 console.log('🎤 ⏹️ Recording stop result:', stopResult ? 'success' : 'failed');
               } else {
                 console.log('🎤 ⚠️ Recorder was not recording when VAD ended');
@@ -273,10 +403,10 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
               
               // Cooldown optimizado según guía (200ms en lugar de 1000ms)
               setTimeout(() => {
-                if (isListening) {
+                if (isListening && initializationStateRef.current === 'active') {
                   setVadState('cooldown');
                   setTimeout(() => {
-                    if (isListening) {
+                    if (isListening && initializationStateRef.current === 'active') {
                       setVadState('detecting');
                       console.log('🎤 VAD ready for new detection after cooldown');
                     }
@@ -290,7 +420,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     }
 
     // Continuar análisis si está escuchando y el contexto es válido
-    if (isListening && analyserRef.current && audioContextRef.current?.state === 'running') {
+    if (isListening && analyserRef.current && audioContextRef.current?.state === 'running' && initializationStateRef.current === 'active') {
       animationFrameRef.current = requestAnimationFrame(analyzeVoiceActivity);
     }
   }, [
@@ -298,14 +428,23 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     analyzeVoiceFrequencies,
     isListening,
     shouldActivateRecording,
-    recorder
+    startRecording,
+    stopRecording,
+    isRecording,
+    state
   ]);
 
   const startListening = useCallback(async () => {
-    if (isListening) return;
+    // 🔥 CONTROL SINGLETON MEJORADO
+    if (initializationStateRef.current !== 'idle') {
+      console.log('🎤 VAD initialization already in progress or active:', initializationStateRef.current);
+      return;
+    }
+
+    initializationStateRef.current = 'initializing';
 
     try {
-      console.log('🎤 Starting voice activity detection...');
+      console.log('🎤 Starting unified VAD with integrated recording...');
       
       // Verificar que no hay streams previos activos
       if (streamRef.current) {
@@ -324,7 +463,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         }
       });
 
-      console.log('🎤 Audio stream obtained');
+      console.log('🎤 Audio stream obtained for unified VAD');
       
       // Verificar que el stream es válido y tiene tracks activos
       const audioTracks = stream.getAudioTracks();
@@ -350,12 +489,6 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
 
-      // 🔥 COMPARTIR STREAM CON RECORDER - Evita doble getUserMedia
-      if (recorder.setExternalStream) {
-        recorder.setExternalStream(stream);
-        console.log('🎤 Stream del VAD compartido con recorder exitosamente');
-      }
-
       // Resetear estado
       stateRef.current = {
         speechStartTime: 0,
@@ -372,27 +505,35 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         maxSize: 50
       };
 
+      vadInstanceRef.current = true;
+      initializationStateRef.current = 'active';
       setIsListening(true);
       setVadState('detecting');
       
       // Iniciar análisis después de un breve delay
       setTimeout(() => {
-        if (isListening) {
+        if (initializationStateRef.current === 'active') {
           analyzeVoiceActivity();
-          console.log('🎤 VAD analysis loop started');
+          console.log('🎤 ✅ Unified VAD analysis loop started');
         }
       }, 100);
       
-      console.log('🎤 VAD initialized successfully');
+      console.log('🎤 ✅ Unified VAD initialized successfully');
       
     } catch (error) {
-      console.error('❌ Failed to start voice activity detection:', error);
+      console.error('❌ Failed to start unified VAD:', error);
+      initializationStateRef.current = 'idle';
       throw error;
     }
-  }, [isListening, analyzeVoiceActivity]);
+  }, [analyzeVoiceActivity]);
 
   const stopListening = useCallback(() => {
-    console.log('🛑 Stopping voice activity detection...');
+    if (initializationStateRef.current === 'stopping' || initializationStateRef.current === 'idle') {
+      return;
+    }
+
+    initializationStateRef.current = 'stopping';
+    console.log('🛑 Stopping unified VAD...');
     
     // Limpiar timeouts
     Object.values(timeoutsRef.current).forEach(timeout => {
@@ -404,6 +545,22 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
+    }
+    
+    // Cancel any active recording
+    if (isRecording) {
+      cancelRecording();
+    }
+    
+    // Limpiar recording timeouts
+    if (durationIntervalRef.current) {
+      clearInterval(durationIntervalRef.current);
+      durationIntervalRef.current = null;
+    }
+    
+    if (recordingTimeoutRef.current) {
+      clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
     
     // Cerrar stream
@@ -419,9 +576,15 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     }
     
     analyserRef.current = null;
+    mediaRecorderRef.current = null;
+    vadInstanceRef.current = false;
+    initializationStateRef.current = 'idle';
+    
     setIsListening(false);
     setVadState('idle');
     setConfidence(0);
+    setIsRecording(false);
+    setRecordingDuration(0);
     
     // Resetear estado
     stateRef.current = {
@@ -431,9 +594,11 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       consecutiveVoiceFrames: 0,
       consecutiveSilenceFrames: 0,
     };
-  }, []);
+    
+    console.log('🛑 ✅ Unified VAD stopped successfully');
+  }, [isRecording, cancelRecording]);
 
-  // Main VAD control logic
+  // 🔥 CONTROL PRINCIPAL SIMPLIFICADO - Evita loops
   useEffect(() => {
     const shouldVADBeActive = (
       state.isCallActive &&
@@ -442,36 +607,37 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       state.avatarConnected
     );
 
-    console.log('🎤 VAD activation check:', {
-      shouldVADBeActive,
-      isCallActive: state.isCallActive,
-      isMuted: state.isMuted,
-      phase: state.phase,
-      avatarConnected: state.avatarConnected,
-      currentlyListening: isListening,
-      singletonActive: vadSingletonRef.current
-    });
-
-    if (shouldVADBeActive && !isListening && !vadSingletonRef.current && !initializationLockRef.current) {
-      console.log('🎤 Starting unified VAD');
-      initializationLockRef.current = true;
-      vadSingletonRef.current = true;
-      startListening().finally(() => {
-        initializationLockRef.current = false;
+    // 🔥 LOGS REDUCIDOS - Solo cada 50 checks para evitar spam
+    const logFrequency = 50;
+    const shouldLog = Math.floor(Date.now() / 100) % logFrequency === 0;
+    
+    if (shouldLog) {
+      console.log('🎤 VAD activation check:', {
+        shouldVADBeActive,
+        isCallActive: state.isCallActive,
+        isMuted: state.isMuted,
+        phase: state.phase,
+        avatarConnected: state.avatarConnected,
+        currentlyListening: isListening,
+        initState: initializationStateRef.current,
+        vadInstance: vadInstanceRef.current
       });
-    } else if (!shouldVADBeActive && isListening && !initializationLockRef.current) {
-      console.log('🎤 Stopping unified VAD');
-      vadSingletonRef.current = false;
+    }
+
+    if (shouldVADBeActive && !vadInstanceRef.current && initializationStateRef.current === 'idle') {
+      console.log('🎤 🟢 Starting unified VAD');
+      startListening();
+    } else if (!shouldVADBeActive && vadInstanceRef.current && initializationStateRef.current === 'active') {
+      console.log('🎤 🔴 Stopping unified VAD');
       stopListening();
     }
-  }, [state.isCallActive, state.isMuted, state.phase, state.avatarConnected, isListening, startListening, stopListening]);
+  }, [state.isCallActive, state.isMuted, state.phase, state.avatarConnected, startListening, stopListening]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (vadSingletonRef.current) {
+      if (vadInstanceRef.current) {
         stopListening();
-        vadSingletonRef.current = false;
       }
     };
   }, [stopListening]);
@@ -485,7 +651,13 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       stopListening,
       isVoiceActive: stateRef.current.isSpeaking,
     },
-    recorder,
+    recorder: {
+      isRecording,
+      recordingDuration,
+      startRecording,
+      stopRecording,
+      cancelRecording,
+    },
     isVADActive: isListening,
   };
 };
