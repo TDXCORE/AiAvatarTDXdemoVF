@@ -1,0 +1,107 @@
+### 🔍 Lo que encontré al revisar los tres archivos
+
+| 🗂️ Archivo                  | Problema / redundancia clave                                                                                                                                                                                                                                                                                                                                                                                              | Riesgo que provoca                                                                                                                                                                                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`use-unified-vad.ts`**     | 1. **Pide su propio `getUserMedia()`** cada vez que activa el VAD.<br>2. Llama a **`useAudioRecorder()`** que -a su vez- **vuelve** a hacer `getUserMedia()`.<br>3. El stream del VAD **no se comparte** con el recorder.<br>4. `shouldActivateRecording()` comprueba `state.phase === 'listening'` **pero llamas a `recorder.startRecording()` justo después de setear `vadState = 'speaking'`** → condición borderline. | • Dos tracks simultáneos → Chrome/Edge suele mutear el segundo.<br>• En iOS/Safari el 2.º `getUserMedia` puede devolver un track en estado `ended` (silencio).<br>• VAD cree que todo va bien pero el recorder graba “vacío” ⇒ STT nunca recibe audio. |
+| **`use-audio-recorder.ts`**  | 1. Siempre crea un **nuevo** `MediaStream`.<br>2. No acepta un stream externo (no hay parámetro).<br>3. No se asegura de cerrar el stream (confía en `AudioUtils.stopRecording`, pero no garantiza `track.stop()`).                                                                                                                                                                                                       | • Redundancia con el VAD.<br>• Fugas de tracks y consumo de CPU/energía.<br>• Posible fallo de permisos si el usuario revoca micro.                                                                                                                    |
+| **`use-audio-processor.ts`** | Lógica OK. Solo se invoca si llega `audioBlob`.                                                                                                                                                                                                                                                                                                                                                                           | –                                                                                                                                                                                                                                                      |
+
+---
+
+## 💣 Error raíz
+
+> **Doble solicitud de micrófono** → el track que usa `MediaRecorder` llega “mute” o nunca se inicializa, por eso tu STT no recibe nada aunque el VAD marque “speaking”.
+
+---
+
+## 🩹 Parche mínimo (sin reescribir toda la arquitectura)
+
+1. **Comparte el stream del VAD** con el recorder.
+
+   ```ts
+   // use-unified-vad.ts  (apenas obtienes el stream)
+   streamRef.current = stream;          // ✅ 1. lo guardas
+   recorder.setExternalStream(stream);  // ✅ 2. se lo pasas al recorder
+   ```
+
+2. **Ajusta el hook del recorder para aceptar ese stream**
+
+   ```ts
+   // use-audio-recorder.ts
+   export function useAudioRecorder(opts: AudioRecorderOptions = {}) {
+     ...
+     const externalStreamRef = useRef<MediaStream | null>(null);
+
+     const setExternalStream = (s: MediaStream) => {
+       externalStreamRef.current = s;
+     };
+
+     const startRecording = useCallback(async () => {
+       if (isRecording) return false;
+
+       const stream =
+         externalStreamRef.current ??
+         (await navigator.mediaDevices.getUserMedia({ audio: {...} }));   // ← solo si no viene uno
+       ...
+     }, [isRecording]);
+     ...
+
+     return { startRecording, stopRecording, isRecording, setExternalStream };
+   }
+   ```
+
+3. **Elimina el segundo `getUserMedia()` del VAD** (opcional pero sano).
+   Si dejas que el recorder sea quien pide el stream, en el VAD puedes crear el `AudioContext` directamente desde él:
+
+   ```ts
+   const stream = await recorder.ensureStream(); // método helper
+   audioContext.createMediaStreamSource(stream);
+   ```
+
+4. **Revisa la condición antes de grabar**
+   Cambia:
+
+   ```ts
+   if (shouldActivateRecording()) recorder.startRecording();
+   ```
+
+   a:
+
+   ```ts
+   if (shouldActivateRecording() && !recorder.isRecording) {
+     recorder.startRecording();
+   }
+   ```
+
+   para evitar “doble start” si el VAD detecta varios frames seguidos.
+
+5. **Cierra siempre el stream al desmontar**
+   Ya tienes parte del cleanup en `stopListening()`, pero añade en `useAudioRecorder`:
+
+   ```ts
+   useEffect(() => () => {
+     mediaRecorderRef.current?.stream.getTracks().forEach(t => t.stop());
+   }, []);
+   ```
+
+---
+
+## 🔧 Si quieres un refactor limpio
+
+| Acción                                                                                             | Resultado                               |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| **1. Extrae un hook `useSharedMicStream()`** que expone `stream`, `ensureStream()`, y `release()`. | *Single source of truth* del micrófono. |
+| **2. Haz que `use-unified-vad` y `use-audio-recorder` consuman ese mismo hook.**                   | No más duplicidad de permisos.          |
+| **3. Cambia el flujo “blob” por `MediaRecorder.start(250)` + WebSocket a `/ws/stt`.**              | Latencia < 300 ms y adiós time-outs.    |
+
+Con solo el **parche mínimo** ya deberías ver en consola:
+
+```
+[VAD] Speech started
+[REC] recording
+[REC] dataavailable 250 ms (xN)
+[VAD] Speech ended
+[REC] stop → audioBlob 35kB
+```
+
+…y la transcripción llegar al LLM. Avísame cómo va y afinamos si algo sigue renco.
