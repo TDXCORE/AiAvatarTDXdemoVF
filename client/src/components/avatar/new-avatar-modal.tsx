@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
-import { useUnifiedVAD } from "@/hooks/use-unified-vad";
+import { useMicVAD } from "@/hooks/use-mic-vad";
 import { useAudioProcessor } from "@/hooks/use-audio-processor";
 import { useToast } from "@/hooks/use-toast";
 import { useTranscriptionState } from "@/hooks/use-transcription-state";
@@ -109,10 +109,11 @@ export function NewAvatarModal({
     },
   });
 
-  // Unified VAD system with integrated recording
-  const { vad, recorder, isVADActive } = useUnifiedVAD(async (audioBlob: Blob) => {
-    if (!avatarClientRef.current?.isReady()) {
-      console.warn('No active avatar session for audio processing');
+  // MicVAD system with integrated recording
+  const micVAD = useMicVAD({
+    onSpeechEnd: async (audioBlob: Blob) => {
+      if (!avatarClientRef.current?.isReady()) {
+        console.warn('No active avatar session for audio processing');
       return;
     }
 

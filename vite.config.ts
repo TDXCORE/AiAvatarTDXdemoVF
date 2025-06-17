@@ -1,11 +1,36 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path from "path";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
+import { viteStaticCopy } from 'vite-plugin-static-copy'
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 export default defineConfig({
   plugins: [
     react(),
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
+          dest: 'vad'
+        },
+        {
+          src: 'node_modules/@ricky0123/vad-web/dist/silero_vad.onnx',
+          dest: 'vad'
+        },
+        {
+          src: 'node_modules/@ricky0123/vad-web/dist/ort-wasm.wasm',
+          dest: 'vad'
+        },
+        {
+          src: 'node_modules/@ricky0123/vad-web/dist/ort-wasm-simd.wasm',
+          dest: 'vad'
+        },
+        {
+          src: 'node_modules/@ricky0123/vad-web/dist/ort-wasm-threaded.wasm',
+          dest: 'vad'
+        }
+      ]
+    }),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined

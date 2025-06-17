@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import { useAudioRecorder } from '@/hooks/use-audio-recorder';
 import { useAudioProcessor } from '@/hooks/use-audio-processor';
-import { useUnifiedVAD } from '@/hooks/use-unified-vad';
+import { useMicVAD } from '@/hooks/use-mic-vad';
 import { apiRequest } from '@/lib/queryClient';
 import { ChatMessage, VoiceSettings } from '@/types/voice';
 import { Phone, MoreVertical, AlertTriangle, Bot } from 'lucide-react';
@@ -48,18 +48,21 @@ export function VoiceChat() {
     },
   });
 
-  // Unified VAD system for voice chat
-  const { vad, recorder, isVADActive } = useUnifiedVAD(async (audioBlob: Blob) => {
-    try {
-      await processAudioRecording(audioBlob);
-    } catch (error) {
-      console.error('Error processing audio from VAD:', error);
-      toast({
-        title: 'Processing Error',
-        description: error instanceof Error ? error.message : 'Failed to process audio',
-        variant: 'destructive',
-      });
-    }
+  // MicVAD system for voice chat
+  const micVAD = useMicVAD({
+    onSpeechEnd: async (audioBlob: Blob) => {
+      try {
+        await processAudioRecording(audioBlob);
+      } catch (error) {
+        console.error('Error processing audio from MicVAD:', error);
+        toast({
+          title: 'Processing Error',
+          description: error instanceof Error ? error.message : 'Failed to process audio',
+          variant: 'destructive',
+        });
+      }
+    },
+    autoStart: true
   });
 
   // Audio processor hook

@@ -4,8 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StreamingAvatarClient, StreamingAvatarState } from "@/lib/streaming-avatar-client";
-import { useAudioRecorder } from "@/hooks/use-audio-recorder";
-import { useVoiceActivity } from "@/hooks/use-voice-activity";
+import { useMicVAD } from "@/hooks/use-mic-vad";
 import { useAudioProcessor } from "@/hooks/use-audio-processor";
 import { useToast } from "@/hooks/use-toast";
 import { ChatMessage } from "@/types/voice";
@@ -48,43 +47,6 @@ export function AvatarModal({
   // Use external video ref if provided, otherwise use internal
   const videoRef = externalVideoRef || internalVideoRef;
 
-  // Voice Activity Detection
-  const vad = useVoiceActivity({
-    sensitivity: 70,
-    onSpeechStart: () => {
-      console.log('Avatar: Speech started');
-      if (!recorder.isRecording && isCallActive && !isMuted) {
-        handleStartRecording();
-      }
-    },
-    onSpeechEnd: () => {
-      console.log('Avatar: Speech ended');
-      if (recorder.isRecording && isCallActive) {
-        handleStopRecording();
-      }
-    },
-  });
-
-  // Audio Recorder
-  const recorder = useAudioRecorder({
-    onRecordingStart: () => {
-      vad.startListening();
-    },
-    onRecordingStop: async (result) => {
-      vad.stopListening();
-      if (result.audioBlob) {
-        await processAudioMessage(result.audioBlob);
-      }
-    },
-    onError: (errorMessage) => {
-      toast({
-        title: 'Recording Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    },
-  });
-
   // Audio processor hook
   const audioProcessor = useAudioProcessor({
     sessionId,
@@ -123,6 +85,29 @@ export function AvatarModal({
     },
   });
 
+  // MicVAD integration - replaces legacy VAD system
+  const micVAD = useMicVAD({
+    onSpeechStart: () => {
+      console.log('🎤 Avatar: Speech started');
+    },
+    onSpeechEnd: async (audioBlob: Blob) => {
+      console.log('🎤 Avatar: Speech ended, processing audio');
+      await processAudioMessage(audioBlob);
+    },
+    onInterrupt: () => {
+      console.log('🎤 Avatar: User interrupt detected');
+      // Stop avatar if speaking
+      if (avatarClientRef.current?.isReady() && avatarState.phase === 'speaking') {
+        try {
+          avatarClientRef.current.interrupt();
+        } catch (error) {
+          console.error('Failed to interrupt avatar:', error);
+        }
+      }
+    },
+    autoStart: false // Manual control
+  });
+
   useEffect(() => {
     if (isOpen) {
       // Request microphone permissions first
@@ -131,7 +116,7 @@ export function AvatarModal({
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 44100
+          sampleRate: 16000
         } 
       })
         .then((stream) => {
@@ -271,33 +256,10 @@ export function AvatarModal({
       setIsCallActive(true);
       setAvatarState(prev => ({ ...prev, phase: 'listening', isConnected: true }));
       
-      // Request microphone permission again before starting VAD
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-            sampleRate: 44100
-          }
-        });
-        stream.getTracks().forEach(track => track.stop());
-        console.log('🎤 Microphone ready for VAD');
-        
-        // Start VAD immediately after permission confirmed
-        setTimeout(() => {
-          if (!isMuted) {
-            vad.startListening();
-            console.log('🎤 VAD started for avatar conversation');
-          }
-        }, 500);
-      } catch (error) {
-        console.error('🎤 Microphone not available for VAD:', error);
-        toast({
-          title: 'Micrófono no disponible',
-          description: 'No se puede detectar voz automáticamente. Usa el botón de grabación manual.',
-          variant: 'destructive',
-        });
+      // Start MicVAD if permissions are available
+      if (micVAD.isReady && !isMuted) {
+        console.log('🎤 Starting MicVAD for avatar conversation');
+        await micVAD.startListening();
       }
       
       // Send initial greeting
@@ -313,8 +275,12 @@ export function AvatarModal({
     
     try {
       setIsCallActive(false);
-      vad.stopListening();
-      recorder.cancelRecording();
+      
+      // Stop MicVAD
+      if (micVAD.isListening) {
+        await micVAD.pauseListening();
+      }
+      
       await avatarClientRef.current.close();
       onClose();
     } catch (error) {
@@ -322,31 +288,24 @@ export function AvatarModal({
     }
   };
 
-  const handleMuteToggle = () => {
+  const handleMuteToggle = async () => {
     setIsMuted(!isMuted);
     if (!isMuted) {
-      vad.stopListening();
-      recorder.cancelRecording();
-    } else if (isCallActive) {
-      vad.startListening();
-    }
-  };
-
-  const handleStartRecording = () => {
-    if (!isMuted && isCallActive && avatarState.phase === 'ready') {
-      recorder.startRecording();
-    }
-  };
-
-  const handleStopRecording = () => {
-    if (recorder.isRecording) {
-      recorder.stopRecording();
+      // Muting - pause MicVAD
+      if (micVAD.isListening) {
+        await micVAD.pauseListening();
+      }
+    } else if (isCallActive && micVAD.isReady) {
+      // Unmuting - start MicVAD
+      await micVAD.startListening();
     }
   };
 
   const cleanup = async () => {
-    vad.stopListening();
-    recorder.cancelRecording();
+    // Stop MicVAD
+    if (micVAD.isListening) {
+      await micVAD.pauseListening();
+    }
     
     if (avatarClientRef.current) {
       try {
@@ -444,19 +403,19 @@ export function AvatarModal({
           </div>
         )}
 
-        {/* VAD Status */}
-        {vad.vadDetected && isCallActive && (
+        {/* MicVAD Status */}
+        {micVAD.isListening && isCallActive && (
           <div className="absolute top-4 left-4 bg-yellow-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
-            Detectando voz...
+            MicVAD detectando...
           </div>
         )}
 
-        {/* Recording indicator */}
-        {recorder.isRecording && (
+        {/* Error indicator */}
+        {micVAD.error && (
           <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm flex items-center">
-            <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
-            Grabando... {recorder.recordingDuration}s
+            <div className="w-2 h-2 bg-white rounded-full mr-2"></div>
+            VAD Error: {micVAD.error}
           </div>
         )}
       </div>
@@ -596,21 +555,6 @@ export function AvatarModal({
                 Finalizar Consulta
               </Button>
             )}
-            
-            {/* Voice Recording */}
-            <Button
-              variant={recorder.isRecording ? "destructive" : "outline"}
-              size="icon"
-              onMouseDown={handleStartRecording}
-              onMouseUp={handleStopRecording}
-              onMouseLeave={handleStopRecording}
-              onTouchStart={handleStartRecording}
-              onTouchEnd={handleStopRecording}
-              disabled={isMuted || isProcessing || !isCallActive || !ready}
-              title={!isCallActive ? "Inicia la consulta primero" : !ready ? "Esperando conexión..." : recorder.isRecording ? "Suelta para enviar" : "Mantén presionado para hablar"}
-            >
-              {recorder.isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </Button>
 
             {/* Mute */}
             <Button
@@ -636,12 +580,13 @@ export function AvatarModal({
           <div className="text-center mt-4 text-sm text-gray-600 dark:text-gray-400">
             {avatarState.phase === 'initializing' && "Conectando con Dr. Carlos..."}
             {avatarState.phase === 'ready' && !isCallActive && "Presiona 'Iniciar Consulta' para comenzar"}
-            {avatarState.phase === 'ready' && isCallActive && "Mantén presionado el micrófono para hablar"}
+            {avatarState.phase === 'ready' && isCallActive && "Habla naturalmente, MicVAD detectará tu voz"}
             {avatarState.phase === 'listening' && "Escuchando... puedes hablar ahora"}
             {avatarState.phase === 'speaking' && "Dr. Carlos está respondiendo..."}
             {avatarState.phase === 'error' && "Error de conexión - Usando modo de respaldo"}
             {isProcessing && "Procesando mensaje..."}
-            {vad.vadDetected && isCallActive && " • Voz detectada"}
+            {micVAD.isListening && isCallActive && " • MicVAD activo"}
+            {micVAD.error && ` • Error VAD: ${micVAD.error}`}
           </div>
         </div>
       </DialogContent>
