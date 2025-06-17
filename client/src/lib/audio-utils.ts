@@ -13,23 +13,33 @@ export class AudioUtils {
     }
   }
 
-  static async startRecording(sharedStream?: MediaStream): Promise<MediaRecorder | null> {
+  static async startRecording(externalStream?: MediaStream): Promise<MediaRecorder | null> {
     try {
-      // Use shared stream from VAD if available, otherwise create new one
-      let stream = sharedStream;
-      if (!stream) {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            sampleRate: 16000,
-            channelCount: 1,
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-        });
+      if (AudioUtils.mediaRecorder?.state === 'recording') {
+        console.warn('Recording already in progress');
+        return null;
       }
 
+      // Use external stream if provided, otherwise request microphone access
+      const stream = externalStream || await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 16000,
+          channelCount: 1,
+        }
+      });
+
+      console.log('🎤 Using stream for recording:', {
+        isExternal: !!externalStream,
+        streamId: stream.id,
+        tracksCount: stream.getTracks().length,
+        trackState: stream.getTracks()[0]?.readyState
+      });
+
       this.audioChunks = [];
-      
+
       // Try different MIME types in order of preference
       const mimeTypes = [
         'audio/webm;codecs=opus',
@@ -75,12 +85,12 @@ export class AudioUtils {
 
       this.mediaRecorder.onstop = () => {
         const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
-        
+
         // Stop all tracks
         if (this.mediaRecorder?.stream) {
           this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
-        
+
         this.mediaRecorder = null;
         resolve(audioBlob);
       };
@@ -103,33 +113,33 @@ export class AudioUtils {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const arrayBuffer = await audioBlob.arrayBuffer();
-      
+
       if (arrayBuffer.byteLength === 0) {
         throw new Error('Empty audio data');
       }
 
       const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-      
+
       // Convert to WAV format
       const wavBuffer = this.audioBufferToWav(audioBuffer);
       const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-      
+
       console.log('✅ WAV conversion successful:', {
         originalSize: audioBlob.size,
         wavSize: wavBlob.size
       });
-      
+
       await audioContext.close();
       return wavBlob;
     } catch (error) {
       console.error('❌ WAV conversion failed:', error);
-      
+
       // If original blob is substantial size, try to use it directly
       if (audioBlob.size > 1000) {
         console.warn('🔄 Using original blob as fallback');
         return audioBlob;
       }
-      
+
       // If blob is too small, throw error
       throw new Error(`Audio conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -141,14 +151,14 @@ export class AudioUtils {
     const sampleRate = buffer.sampleRate;
     const arrayBuffer = new ArrayBuffer(44 + length * numberOfChannels * 2);
     const view = new DataView(arrayBuffer);
-    
+
     // WAV header
     const writeString = (offset: number, string: string) => {
       for (let i = 0; i < string.length; i++) {
         view.setUint8(offset + i, string.charCodeAt(i));
       }
     };
-    
+
     writeString(0, 'RIFF');
     view.setUint32(4, 36 + length * numberOfChannels * 2, true);
     writeString(8, 'WAVE');
@@ -162,7 +172,7 @@ export class AudioUtils {
     view.setUint16(34, 16, true);
     writeString(36, 'data');
     view.setUint32(40, length * numberOfChannels * 2, true);
-    
+
     // Convert audio data
     let offset = 44;
     for (let i = 0; i < length; i++) {
@@ -172,7 +182,7 @@ export class AudioUtils {
         offset += 2;
       }
     }
-    
+
     return arrayBuffer;
   }
 

@@ -343,7 +343,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
 
             // 🔥 FIX: Check recording condition BEFORE changing state
             const canStartRecording = shouldActivateRecording();
-            
+
             internalState.isSpeaking = true;
             internalState.speechStartTime = currentTime;
             setVadState('speaking');
@@ -357,14 +357,6 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
               const recordingStarted = await startRecording();
               console.log('🎤 🔴 Recording start result:', recordingStarted);
             } else {
-              console.log('🎤 ⚠️ Recording not activated:', {
-                isCallActive: state.isCallActive,
-                isMuted: state.isMuted,
-                phase: state.phase,
-                avatarConnected: state.avatarConnected,
-                recorderBusy: isRecording
-              });
-            }</old_str>
               console.log('🎤 ⚠️ Recording not activated:', {
                 isCallActive: state.isCallActive,
                 isMuted: state.isMuted,
