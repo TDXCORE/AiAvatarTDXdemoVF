@@ -2,13 +2,36 @@ import { useState, useCallback, useRef } from 'react';
 import { AudioUtils } from '@/lib/audio-utils';
 import { AudioRecordingResult } from '@/types/voice';
 
-interface UseAudioRecorderOptions {
+interface SmartRecordingConfig {
+  autoStart: boolean;           // Inicio automático por VAD
+  autoStop: boolean;            // Parada automática por VAD
+  maxDuration: number;          // 30 segundos máximo
+  minDuration: number;          // 0.5 segundos mínimo
+  silenceDetection: boolean;    // Detección de silencios
+  voiceEnhancement: boolean;    // Mejoras de audio para voz
+}
+
+interface AudioRecorderOptions {
   onRecordingStart?: () => void;
   onRecordingStop?: (result: AudioRecordingResult) => void;
   onError?: (error: string) => void;
+  smartConfig?: Partial<SmartRecordingConfig>;
 }
 
-export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
+export function useAudioRecorder(options: AudioRecorderOptions = {}) {
+  const { onRecordingStart, onRecordingStop, onError, smartConfig = {} } = options;
+
+  // Configuración inteligente por defecto
+  const config: SmartRecordingConfig = {
+    autoStart: true,
+    autoStop: true,
+    maxDuration: 30000, // 30 segundos
+    minDuration: 500,   // 0.5 segundos
+    silenceDetection: true,
+    voiceEnhancement: true,
+    ...smartConfig
+  };
+
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -16,8 +39,6 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
   const maxRecordingTime = 30000; // 30 segundos máximo
-
-  const { onRecordingStart, onRecordingStop, onError } = options;
 
   const startRecording = useCallback(async () => {
     try {
@@ -29,7 +50,23 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
         return false;
       }
 
-      const recorder = await AudioUtils.startRecording();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: config.voiceEnhancement,
+          noiseSuppression: config.voiceEnhancement,
+          autoGainControl: config.voiceEnhancement,
+          sampleRate: 16000,  // Optimizado para voz
+          channelCount: 1,    // Mono para voz
+          volume: 1.0,
+          // Configuraciones adicionales para calidad de voz
+          googEchoCancellation: config.voiceEnhancement,
+          googAutoGainControl: config.voiceEnhancement,
+          googNoiseSuppression: config.voiceEnhancement,
+          googHighpassFilter: true,
+        }
+      });
+
+      const recorder = await AudioUtils.startRecording(stream);
       if (!recorder) {
         onError?.('Failed to start recording. Please check your microphone.');
         return false;
@@ -61,7 +98,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
       onError?.('Failed to start recording. Please try again.');
       return false;
     }
-  }, [isRecording, onRecordingStart, onError]);
+  }, [isRecording, onRecordingStart, onError, config]);
 
   const stopRecording = useCallback(async () => {
     if (!isRecording || !mediaRecorderRef.current) return null;
@@ -92,7 +129,7 @@ export function useAudioRecorder(options: UseAudioRecorderOptions = {}) {
       }
 
       const duration = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      
+
       console.log('🎤 Recording completed:', {
         size: audioBlob.size,
         duration: duration,

@@ -35,7 +35,7 @@ export function NewAvatarModal({
   });
 
   const [isMuted, setIsMuted] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(isCallActive);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('09:53');
@@ -97,7 +97,7 @@ export function NewAvatarModal({
         isVoice: true,
       };
       setMessages(prev => [...prev, userMessage]);
-      
+
       // Agregar a transcripción
       transcription.addMessage({
         content: message,
@@ -105,7 +105,7 @@ export function NewAvatarModal({
         isVoice: true,
         timestamp: new Date(),
       });
-      
+
       onMessageReceived?.(message, '');
     },
     onAIResponse: async (response) => {
@@ -144,7 +144,7 @@ export function NewAvatarModal({
       const initTimer = setTimeout(() => {
         initializeAvatarSession();
       }, 500);
-      
+
       return () => clearTimeout(initTimer);
     } else {
       cleanup();
@@ -370,7 +370,7 @@ export function NewAvatarModal({
       <DialogContent className="max-w-full max-h-full h-screen w-screen p-0 m-0 flex flex-col bg-black">
         <DialogTitle className="sr-only">TDX DEMO DOCTOR</DialogTitle>
         <DialogDescription className="sr-only">TDX DEMO DOCTOR</DialogDescription>
-        
+
         {/* Header */}
         <div className="bg-black text-white p-4 flex items-center justify-between relative z-10">
           <div className="flex items-center space-x-3">
@@ -542,13 +542,15 @@ export function NewAvatarModal({
             )}
             {!audioProcessor.isProcessing && (
               <div className="text-white/70">
-                {avatarState.phase === 'initializing' && "Conectando con el Doctor..."}
-                {avatarState.phase === 'ready' && !isCallActive && "Listo para comenzar la conversación"}
-                {avatarState.phase === 'ready' && isCallActive && "Mantén presionado el micrófono para hablar o usa el chat de texto"}
-                {avatarState.phase === 'listening' && "Puedes hablar ahora o escribir un mensaje"}
-                {avatarState.phase === 'speaking' && "El Doctor está respondiendo..."}
-                {avatarState.phase === 'error' && "Error de conexión - Intenta nuevamente"}
-              </div>
+              {avatarState.phase === 'initializing' && "Conectando con el Dr. Mendoza..."}
+              {avatarState.phase === 'ready' && !isCallActive && "Listo para comenzar la conversación"}
+              {avatarState.phase === 'ready' && isCallActive && "Conversación activa - Habla naturalmente o usa el chat"}
+              {avatarState.phase === 'listening' && !recorder.isRecording && "Escuchando - Solo comienza a hablar"}
+              {avatarState.phase === 'listening' && recorder.isRecording && `Grabando tu mensaje... ${recorder.recordingDuration}s`}
+              {avatarState.phase === 'speaking' && "El Dr. Mendoza está respondiendo..."}
+              {avatarState.phase === 'error' && "Error de conexión - Intenta nuevamente"}
+              {vad.vadState === 'detecting' && "Detectando tu voz..."}
+            </div>
             )}
           </div>
         </div>
