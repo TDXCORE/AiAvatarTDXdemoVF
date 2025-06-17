@@ -1,0 +1,132 @@
+Parce, con los valores que tienes ahora el VAD está literalmente “sordo” a tu voz — y, para rematar, se está instanciando dos veces. Te dejo el plan quirúrgico en tres frentes: **(A) calibrar umbrales**, **(B) evitar dobles instancias**, y **(C) blindar la reconexión cuando el stream se cae**.
+
+---
+
+## A. Calibremos los umbrales (versión rápida)
+
+| Parámetro                           |       Ahora |  Ponlo en… | Por qué                                                             |
+| ----------------------------------- | ----------: | ---------: | ------------------------------------------------------------------- |
+| `voiceThreshold`                    |      **12** |      **7** | Voces normales en mic-laptop entregan RMS 5-9. Con 12 nunca llegas. |
+| `silenceThreshold`                  |       **8** |      **4** | Debe ser 2-3 puntos abajo del nuevo `voiceThreshold`.               |
+| `speechStartDelay`                  |  **120 ms** |  **80 ms** | Más ágil, pero sin falsos positivos.                                |
+| `speechEndDelay`                    |  **350 ms** | **280 ms** | Corta antes y acelera el turnaround.                                |
+| `cooldownDelay`                     | **1000 ms** | **200 ms** | El segundo entero te congela la conversación; bájalo drásticamente. |
+| `voiceRatio` (en `isVoiceDetected`) |  **> 0.20** | **> 0.10** | 10 % de energía en banda vocal es más realista.                     |
+
+```ts
+// use-voice-activity.ts
+export const VAD_CONFIG = {
+  fftSize: 1024,
+  smoothingTimeConstant: 0.12,
+  minDecibels: -60,
+  maxDecibels: -5,
+  sampleRate: 16000,
+  bufferSize: 2048,
+
+  voiceThreshold: 7,
+  silenceThreshold: 4,
+  speechStartDelay: 80,
+  speechEndDelay: 280,
+  cooldownDelay: 200,
+  minimumSpeechDuration: 250,
+
+  voiceFreqMin: 65,
+  voiceFreqMax: 4000,
+};
+```
+
+> **Tip de campo**: si trabajas en open-space súbelo un pelo (`voiceThreshold = 9`, `silenceThreshold = 5`) y listo.
+
+---
+
+## B. Bloquea la doble inicialización
+
+Tu log muestra:
+
+```
+🎤 Starting voice activity detection...
+...
+🎤 Starting unified VAD
+🎤 Starting voice activity detection...   // ← segunda vez
+```
+
+### Causa
+
+`use-unified-vad.ts` crea su propio VAD **y** `useVoiceActivity()` también crea otro porque el hook padre se monta dos veces cuando cambia `isOpen`.
+
+### Fix express
+
+```ts
+// use-unified-vad.ts
+const vadRef = useRef<VAD | null>(null);
+
+useEffect(() => {
+  if (!vadRef.current) {
+    vadRef.current = createVAD(VAD_CONFIG);
+  }
+  return () => {
+    vadRef.current?.destroy();
+    vadRef.current = null;
+  };
+}, []);     // ← array vacío: solo una vez
+```
+
+Y en `new-avatar-modal.tsx`:
+
+```tsx
+// evita montar el modal completo dos veces
+{isOpen && <NewAvatarModal key="avatar-modal" />}
+```
+
+Así React no re-evalúa el hook cuando cambie el estado interno del avatar.
+
+---
+
+## C. Protege el streaming (desconexión)
+
+Veo esto en tu traza:
+
+```
+🔌 Stream disconnected
+🎭 Avatar state changed: phase: "error", isConnected: false
+```
+
+Añade un **re-intent automático** de WebRTC / socket:
+
+```ts
+// streaming-avatar-client.ts
+avatar.on('disconnect', () => {
+  reconnectAttempts.current += 1;
+  if (reconnectAttempts.current <= 3) {
+    console.warn('Avatar stream lost, retrying…');
+    setTimeout(() => avatar.start(), 600);
+  } else {
+    console.error('Avatar stream failed after 3 retries');
+    dispatch({ type: 'SET_PHASE', phase: 'error' });
+  }
+});
+```
+
+Mientras se restablece, pon el VAD en pausa:
+
+```ts
+if (avatar.phase === 'error') vadRef.current?.stop();
+```
+
+---
+
+## Checklist para probar
+
+1. **Reload** y observa que SOLO haya un bloque “Starting voice activity detection”.
+2. Verifica que el RMS log (añade `console.log(rms)`) oscile 5-9 cuando hables.
+3. Asegúrate de recibir:
+
+   ```
+   Speech started
+   Recorder → start
+   Speech ended
+   Recorder → stop
+   ```
+4. Que cada request→respuesta del avatar tarde < 1 s.
+
+Con estos tres cambios tu asistente debería quedar “piloso” y captar cada palabra sin que tengas que tocar botones. Avísame cómo te va y ajustamos si aún cojea. ¡Éxitos, parcero!

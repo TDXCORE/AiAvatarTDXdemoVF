@@ -1,0 +1,46 @@
+[vite] connecting...
+[vite] connected.
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: false, isMuted: false, phase: "idle", avatarConnected: false, …}
+🎤 Starting voice activity detection...
+🎤 Audio stream obtained
+🎤 VAD initialized successfully
+🎬 Iniciando sesión de avatar...
+🚀 Inicializando StreamingAvatar...
+🔑 Obteniendo token...
+🎭 Avatar state changed: 
+Object {phase: "initializing", isConnected: undefined, prevPhase: "initializing"}
+✅ Token obtenido exitosamente
+🎭 Avatar state changed: 
+Object {phase: undefined, isConnected: undefined, prevPhase: "initializing"}
+🎭 Creando instancia de StreamingAvatar...
+🎬 Iniciando avatar...
+🎭 Avatar state changed: 
+Object {phase: "connecting", isConnected: undefined, prevPhase: "initializing"}
+🎥 Stream ready: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "ready", isConnected: true, prevPhase: "connecting"}
+🎉 StreamingAvatar initialized successfully
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: true, isMuted: false, phase: "speaking", avatarConnected: true, …}
+🎤 Microphone permissions granted for call
+🎤 Sending initial greeting...
+🎤 Enviando respuesta del agente: "¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?"
+🎭 Avatar state changed: 
+Object {phase: "speaking", isConnected: undefined, prevPhase: "speaking"}
+✅ Agent response sent to avatar successfully
+🎤 Avatar started talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "speaking", isConnected: undefined, prevPhase: "speaking"}
+🔇 Avatar stopped talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "listening", isConnected: undefined, prevPhase: "speaking"}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 Starting unified VAD
+🎤 Starting voice activity detection...
+🎤 Audio stream obtained
+🎤 VAD initialized successfully
