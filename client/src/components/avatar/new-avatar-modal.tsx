@@ -133,20 +133,23 @@ export function NewAvatarModal({
   });
 
   useEffect(() => {
-    if (isOpen) {
-      // Initialize avatar when modal opens
+    if (isOpen && !avatarClientRef.current) {
+      // Solo inicializar si no hay cliente activo
       const initTimer = setTimeout(() => {
         initializeAvatarSession();
       }, 500);
-
       return () => clearTimeout(initTimer);
-    } else {
-      cleanup();
     }
+    // ELIMINAR: else cleanup() - Esto causa el problema
   }, [isOpen]);
 
   useEffect(() => {
-    return () => cleanup();
+    return () => {
+      // Solo cleanup cuando el componente se desmonta definitivamente
+      if (!isOpen) {
+        cleanup();
+      }
+    };
   }, []);
 
   useEffect(() => {

@@ -6,7 +6,7 @@ import { useAudioRecorder } from './use-audio-recorder';
 
 export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<void>) => {
   const { state } = useCallState();
-  const vadInstanceRef = useRef<boolean>(false);
+  const vadSingletonRef = useRef<boolean>(false);
 
   // Single VAD instance with optimized settings
   const vad = useVoiceActivity({
@@ -67,26 +67,27 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       isMuted: state.isMuted,
       phase: state.phase,
       avatarConnected: state.avatarConnected,
-      currentlyListening: vad.isListening
+      currentlyListening: vad.isListening,
+      singletonActive: vadSingletonRef.current
     });
 
-    if (shouldVADBeActive && !vad.isListening) {
+    if (shouldVADBeActive && !vad.isListening && !vadSingletonRef.current) {
       console.log('🎤 Starting unified VAD');
+      vadSingletonRef.current = true;
       vad.startListening();
-      vadInstanceRef.current = true;
     } else if (!shouldVADBeActive && vad.isListening) {
       console.log('🎤 Stopping unified VAD');
+      vadSingletonRef.current = false;
       vad.stopListening();
-      vadInstanceRef.current = false;
     }
-  }, [state.isCallActive, state.isMuted, state.phase, state.avatarConnected, vad.isListening]);
+  }, [state.isCallActive, state.isMuted, state.phase, state.avatarConnected]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (vadInstanceRef.current) {
+      if (vadSingletonRef.current) {
         vad.stopListening();
-        vadInstanceRef.current = false;
+        vadSingletonRef.current = false;
       }
     };
   }, []);

@@ -13,6 +13,7 @@ type CallAction =
   | { type: 'SET_MUTED'; muted: boolean }
   | { type: 'SET_PHASE'; phase: CallState['phase'] }
   | { type: 'SET_AVATAR_CONNECTED'; connected: boolean }
+  | { type: 'SOFT_RESET' }
   | { type: 'RESET' };
 
 const defaultState: CallState = {
@@ -32,6 +33,12 @@ const callReducer = (state: CallState, action: CallAction): CallState => {
       return { ...state, phase: action.phase };
     case 'SET_AVATAR_CONNECTED':
       return { ...state, avatarConnected: action.connected };
+    case 'SOFT_RESET':
+      return { 
+        ...state, 
+        phase: 'idle'
+        // Mantener isCallActive y avatarConnected
+      };
     case 'RESET':
       return defaultState;
     default:

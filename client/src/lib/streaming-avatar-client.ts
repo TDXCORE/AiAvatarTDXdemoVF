@@ -159,16 +159,17 @@ export class StreamingAvatarClient {
       console.log('🔇 Avatar stopped talking:', event);
       this.onStateChange?.({ phase: 'listening' });
       
-      // Update call context with delay to ensure proper state transition
+      // CAMBIO: Usar SOFT_RESET en lugar de cambios que puedan causar cleanup
       setTimeout(() => {
         this.callDispatch?.({ type: 'SET_PHASE', phase: 'listening' });
-      }, 100);
+        // NO hacer SET_CALL_ACTIVE: false aquí
+      }, 150); // Delay más largo para estabilidad
 
       // Emit custom event for VAD control with delay to ensure state is updated
       if (this.videoElement) {
         setTimeout(() => {
           this.videoElement?.dispatchEvent(new CustomEvent('avatar_stop_talking', { detail: event }));
-        }, 100);
+        }, 150);
       }
     });
 
