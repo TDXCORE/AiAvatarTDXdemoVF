@@ -13,8 +13,8 @@ const VAD_CONFIG = {
   bufferSize: 2048,           
 
   // Thresholds calibrados para mejor detección de voz
-  voiceThreshold: 4,          // Más sensible para voces normales (2-6 RMS)
-  silenceThreshold: 2,        // Más sensible para detectar silencios
+  voiceThreshold: 8,          // Ajustado para detectar voz más claramente
+  silenceThreshold: 3,        // Más sensible para detectar silencios
 
   // Tiempos optimizados para respuesta inmediata
   speechStartDelay: 50,       // Más rápido para detección inmediata
@@ -43,6 +43,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
   const initializationStateRef = useRef<'idle' | 'initializing' | 'active' | 'stopping'>('idle');
   const vadInstanceRef = useRef<boolean>(false);
   const lastLogTimeRef = useRef<number>(0);
+  const instanceIdRef = useRef<string>(`vad_${Date.now()}`);
 
   // Estados VAD internos
   const [isListening, setIsListening] = useState(false);
@@ -300,15 +301,16 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     }
 
     // Detección de voz más sensible para captar voz normal
-    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.05;
+    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.03;
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
     const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
 
-    // 🔥 LOGS MEJORADOS: Cada 10 frames (más frecuente) + métricas útiles
+    // 🔥 LOGS MEJORADOS: Cada 30 frames + métricas útiles
     const frameCount = Math.floor(currentTime / 100); // Cada ~100ms
-    if (frameCount % 10 === 0) {
-      console.log('🎤 VAD Debug:', {
-        rms: rms.toFixed(2),
+    if (frameCount % 30 === 0 || rms > VAD_CONFIG.voiceThreshold) {
+      console.log(`🎤 VAD[${instanceIdRef.current}]:`, {
+        rms: rms.toFixed(1),
+        threshold: VAD_CONFIG.voiceThreshold,
         voiceRatio: voiceRatio.toFixed(3),
         confidence: overallConfidence.toFixed(3),
         isVoiceDetected,
@@ -316,8 +318,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         voiceFrames: internalState.consecutiveVoiceFrames,
         silenceFrames: internalState.consecutiveSilenceFrames,
         vadState,
-        recorderStatus: isRecording ? 'recording' : 'idle',
-        streamActive: streamRef.current ? 'active' : 'inactive'
+        recording: isRecording
       });
     }
 
@@ -350,7 +351,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
             if (shouldActivateRecording()) {
               const recordingStarted = await startRecording();
               console.log('🎤 🔴 Recording start result:', recordingStarted);
-            } else {
+            } else {</old_str>
               console.log('🎤 ⚠️ Recording not activated:', {
                 isCallActive: state.isCallActive,
                 isMuted: state.isMuted,
@@ -437,11 +438,12 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
   const startListening = useCallback(async () => {
     // 🔥 CONTROL SINGLETON MEJORADO
     if (initializationStateRef.current !== 'idle') {
-      console.log('🎤 VAD initialization already in progress or active:', initializationStateRef.current);
+      console.log(`🎤 VAD[${instanceIdRef.current}] already in progress:`, initializationStateRef.current);
       return;
     }
 
     initializationStateRef.current = 'initializing';
+    console.log(`🎤 VAD[${instanceIdRef.current}] Starting initialization...`);
 
     try {
       console.log('🎤 Starting unified VAD with integrated recording...');
@@ -607,17 +609,16 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       state.avatarConnected
     );
 
-    // Solo log cada 5 segundos para evitar spam
+    // Solo log cada 10 segundos para evitar spam
     const now = Date.now();
-    if (!lastLogTimeRef.current || now - lastLogTimeRef.current > 5000) {
-      console.log('🎤 VAD activation check:', {
+    if (!lastLogTimeRef.current || now - lastLogTimeRef.current > 10000) {
+      console.log(`🎤 VAD[${instanceIdRef.current}] Status:`, {
         shouldVADBeActive,
         isCallActive: state.isCallActive,
-        isMuted: state.isMuted,
         phase: state.phase,
         avatarConnected: state.avatarConnected,
         currentlyListening: isListening,
-        vadInstance: vadInstanceRef.current
+        initState: initializationStateRef.current
       });
       lastLogTimeRef.current = now;
     }

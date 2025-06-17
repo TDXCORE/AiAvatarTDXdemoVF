@@ -13,16 +13,20 @@ export class AudioUtils {
     }
   }
 
-  static async startRecording(): Promise<MediaRecorder | null> {
+  static async startRecording(sharedStream?: MediaStream): Promise<MediaRecorder | null> {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 16000,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
+      // Use shared stream from VAD if available, otherwise create new one
+      let stream = sharedStream;
+      if (!stream) {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            sampleRate: 16000,
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+      }
 
       this.audioChunks = [];
       
