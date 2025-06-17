@@ -145,10 +145,12 @@ export class StreamingAvatarClient {
 
     this.streamingAvatar.on(StreamingEvents.AVATAR_STOP_TALKING, (event) => {
       console.log('🔇 Avatar stopped talking:', event);
-      // Small delay before switching to listening to ensure audio output is complete
+      // Increased delay to ensure audio output is completely finished before switching to listening
       setTimeout(() => {
+        // Verificar que realmente no hay audio residual
+        console.log('🎤 Avatar audio finished - switching to listening mode');
         this.onStateChange?.({ phase: 'listening' });
-      }, 200);
+      }, 800); // Aumentado de 200ms a 800ms
     });
 
     this.streamingAvatar.on(StreamingEvents.USER_START, (event) => {

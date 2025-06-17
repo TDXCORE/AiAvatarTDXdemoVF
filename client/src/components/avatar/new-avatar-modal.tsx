@@ -47,12 +47,12 @@ export function NewAvatarModal({
   // Hook de transcripción
   const transcription = useTranscriptionState();
 
-  // Voice Activity Detection with optimized settings
+  // Voice Activity Detection with optimized settings for better stability
   const vad = useVoiceActivity({
-    sensitivity: 80,
-    speechStartThreshold: 300,      // Faster activation
-    speechEndThreshold: 1800,       // More patience for pauses
-    minimumRecordingDuration: 600,  // Shorter minimum
+    sensitivity: 75,                // Slightly less sensitive
+    speechStartThreshold: 500,      // More stable activation
+    speechEndThreshold: 2000,       // More patience for pauses
+    minimumRecordingDuration: 800,  // Longer minimum for stability
     autoRecordingEnabled: true,
     continuousListening: true,
     onSpeechStart: () => {
@@ -234,15 +234,42 @@ export function NewAvatarModal({
         setAvatarState(prev => {
           const updatedState = { ...prev, ...newState };
           
-          // Auto-activate VAD when avatar stops talking
+          // Auto-activate VAD when avatar stops talking with enhanced verification
           if (newState.phase === 'listening' && isCallActive && !isMuted) {
-            console.log('🎤 Avatar ready to listen - activating VAD in 500ms');
-            setTimeout(() => {
-              if (!vad.isListening && isCallActive && !isMuted) {
-                vad.startListening();
-                console.log('🎤 VAD auto-activated after avatar response');
+            console.log('🎤 Avatar ready to listen - activating VAD in 1500ms');
+            setTimeout(async () => {
+              // Verificar permisos de micrófono primero
+              try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(track => track.stop());
+                
+                // Verificar estado y activar VAD con retry logic
+                if (!vad.isListening && isCallActive && !isMuted) {
+                  let retryCount = 0;
+                  const maxRetries = 3;
+                  
+                  const tryActivateVAD = async () => {
+                    try {
+                      await vad.startListening();
+                      console.log('🎤 VAD auto-activated successfully after avatar response');
+                    } catch (error) {
+                      retryCount++;
+                      console.warn(`🎤 VAD activation failed (attempt ${retryCount}):`, error);
+                      
+                      if (retryCount < maxRetries) {
+                        setTimeout(tryActivateVAD, 1000 * retryCount);
+                      } else {
+                        console.error('🎤 VAD activation failed after maximum retries');
+                      }
+                    }
+                  };
+                  
+                  await tryActivateVAD();
+                }
+              } catch (error) {
+                console.error('🎤 Cannot activate VAD - no microphone access:', error);
               }
-            }, 500);
+            }, 1500); // Aumentado de 500ms a 1500ms
           }
           
           return updatedState;

@@ -10,13 +10,14 @@ const VAD_CONFIG = {
   sampleRate: 16000,          // Óptimo para voz
   bufferSize: 4096,           // Buffer más grande para estabilidad
   
-  // Thresholds críticos optimizados
-  voiceThreshold: 12,         // RMS mínimo para detectar voz (más sensible)
+  // Thresholds críticos optimizados para mejor detección
+  voiceThreshold: 15,         // RMS mínimo para detectar voz (menos sensible)
   silenceThreshold: 6,        // RMS máximo para considerar silencio (más estricto)
   
   // Tiempos de estabilización mejorados
-  speechStartDelay: 100,      // ms antes de confirmar inicio de habla (más rápido)
+  speechStartDelay: 300,      // ms antes de confirmar inicio de habla (más estable)
   speechEndDelay: 1500,       // ms de silencio antes de terminar (más paciencia)
+  cooldownDelay: 1000,        // ms de cooldown después de terminar grabación
   minimumSpeechDuration: 400, // ms mínimos de habla válida (más permisivo)
   
   // Filtros de frecuencia para voz humana
@@ -216,10 +217,17 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
               onSpeechEnd?.();
               onVoiceActivity?.(false);
               
-              // Cooldown breve antes de volver a detectar
+              // Cooldown más largo antes de volver a detectar para evitar activación prematura
               setTimeout(() => {
                 if (isListening) {
-                  setVadState('detecting');
+                  setVadState('cooldown');
+                  // Cooldown adicional antes de reactivar detección
+                  setTimeout(() => {
+                    if (isListening) {
+                      setVadState('detecting');
+                      console.log('🎤 VAD ready for new detection after cooldown');
+                    }
+                  }, VAD_CONFIG.cooldownDelay);
                 }
               }, 200);
             }
@@ -251,6 +259,12 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
     try {
       console.log('🎤 Starting voice activity detection...');
       
+      // Verificar que no hay streams previos activos
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      
       // Configuración de audio optimizada para voz
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -263,6 +277,12 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       });
 
       console.log('🎤 Audio stream obtained');
+      
+      // Verificar que el stream es válido y tiene tracks activos
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0 || audioTracks[0].readyState !== 'live') {
+        throw new Error('Invalid audio stream - no active audio tracks');
+      }
       
       streamRef.current = stream;
       
