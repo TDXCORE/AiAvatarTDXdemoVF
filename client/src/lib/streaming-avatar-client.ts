@@ -1,4 +1,3 @@
-
 import StreamingAvatar, { 
   AvatarQuality, 
   StreamingEvents, 
@@ -63,7 +62,7 @@ export class StreamingAvatarClient {
       console.log('🎉 StreamingAvatar initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize StreamingAvatar:', error);
-      
+
       // Enhanced error logging
       if (error && typeof error === 'object') {
         console.error('Error details:', {
@@ -73,7 +72,7 @@ export class StreamingAvatarClient {
           responseText: (error as any).responseText
         });
       }
-      
+
       // Check for concurrent limit error
       let errorMessage = error instanceof Error ? error.message : 'Initialization failed';
       if (error && typeof error === 'object' && (error as any).responseText) {
@@ -82,7 +81,7 @@ export class StreamingAvatarClient {
           errorMessage = 'Concurrent session limit reached. Please wait a moment and try again.';
         }
       }
-      
+
       this.onStateChange?.({ 
         phase: 'error', 
         error: errorMessage,
@@ -103,7 +102,7 @@ export class StreamingAvatarClient {
     }
 
     const result = await response.json();
-    
+
     if (!result.success) {
       throw new Error(result.message || 'Token creation failed');
     }
@@ -116,7 +115,7 @@ export class StreamingAvatarClient {
 
     this.streamingAvatar.on(StreamingEvents.STREAM_READY, (event) => {
       console.log('🎥 Stream ready:', event);
-      
+
       // Set video source
       if (this.videoElement && event.detail) {
         this.videoElement.srcObject = event.detail;
@@ -141,16 +140,23 @@ export class StreamingAvatarClient {
     this.streamingAvatar.on(StreamingEvents.AVATAR_START_TALKING, (event) => {
       console.log('🎤 Avatar started talking:', event);
       this.onStateChange?.({ phase: 'speaking' });
+
+      // Emit custom event for VAD control
+      if (this.videoElement) {
+        this.videoElement.dispatchEvent(new CustomEvent('avatar_start_talking', { detail: event }));
+      }
     });
 
     this.streamingAvatar.on(StreamingEvents.AVATAR_STOP_TALKING, (event) => {
       console.log('🔇 Avatar stopped talking:', event);
-      // Increased delay to ensure audio output is completely finished before switching to listening
-      setTimeout(() => {
-        // Verificar que realmente no hay audio residual
-        console.log('🎤 Avatar audio finished - switching to listening mode');
-        this.onStateChange?.({ phase: 'listening' });
-      }, 800); // Aumentado de 200ms a 800ms
+      this.onStateChange?.({ phase: 'listening' });
+
+      // Emit custom event for VAD control with delay to ensure state is updated
+      if (this.videoElement) {
+        setTimeout(() => {
+          this.videoElement?.dispatchEvent(new CustomEvent('avatar_stop_talking', { detail: event }));
+        }, 100);
+      }
     });
 
     this.streamingAvatar.on(StreamingEvents.USER_START, (event) => {
@@ -244,7 +250,7 @@ export class StreamingAvatarClient {
     // Reset state
     this.sessionToken = null;
     this.videoElement = null;
-    
+
     this.onStateChange?.({ 
       phase: 'initializing',
       isConnected: false,
