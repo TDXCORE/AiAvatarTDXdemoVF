@@ -35,7 +35,7 @@ export function NewAvatarModal({
   });
 
   const [isMuted, setIsMuted] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(isCallActive);
+  const [isCallActive, setIsCallActive] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [textInput, setTextInput] = useState('');
   const [timeRemaining, setTimeRemaining] = useState('09:53');
