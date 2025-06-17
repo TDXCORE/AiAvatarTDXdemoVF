@@ -1,28 +1,28 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// Configuración VAD calibrada para detección óptima
+// Configuración VAD calibrada según guía quirúrgica
 const VAD_CONFIG = {
-  fftSize: 2048,              // Mejor resolución frecuencial
-  smoothingTimeConstant: 0.15, // Más responsivo para conversación
-  minDecibels: -55,           // Más sensible para conversación natural
-  maxDecibels: -10,           // Rango dinámico amplio
-  sampleRate: 16000,          // Óptimo para voz
-  bufferSize: 4096,           // Buffer más grande para estabilidad
+  fftSize: 1024,              // Según guía
+  smoothingTimeConstant: 0.12, // Según guía
+  minDecibels: -60,           // Según guía
+  maxDecibels: -5,            // Según guía
+  sampleRate: 16000,          // Según guía
+  bufferSize: 2048,           // Según guía
   
-  // Thresholds calibrados según análisis
-  voiceThreshold: 12,         // Más sensible para detectar voz (era 15)
-  silenceThreshold: 8,        // Más estricto para silencio (era 6)
+  // Thresholds calibrados según guía quirúrgica
+  voiceThreshold: 7,          // Reducido de 12 → 7 (voces normales 5-9 RMS)
+  silenceThreshold: 4,        // Reducido de 8 → 4 (2-3 puntos bajo voiceThreshold)
   
-  // Tiempos optimizados para respuesta rápida
-  speechStartDelay: 120,      // Detecta primera sílaba rápido (era 300)
-  speechEndDelay: 350,        // Respuesta más rápida (era 1500)
-  cooldownDelay: 1000,        // ms de cooldown después de terminar grabación
-  minimumSpeechDuration: 250, // Permite palabras cortas como "sí", "no" (era 400)
+  // Tiempos optimizados según guía
+  speechStartDelay: 80,       // Reducido de 120ms → 80ms (más ágil)
+  speechEndDelay: 280,        // Reducido de 350ms → 280ms (acelera turnaround)
+  cooldownDelay: 200,         // Reducido de 1000ms → 200ms (crítico: evita congelamiento)
+  minimumSpeechDuration: 250, // Mantener para palabras cortas
   
-  // Filtros de frecuencia ampliados para voz natural
-  voiceFreqMin: 65,           // Incluye más graves (era 85)
-  voiceFreqMax: 4000,         // Incluye más agudos naturales (era 3400)
+  // Filtros de frecuencia según guía
+  voiceFreqMin: 65,           // Según guía
+  voiceFreqMax: 4000,         // Según guía
 };
 
 type VADState = 'idle' | 'detecting' | 'speaking' | 'ending' | 'cooldown';
@@ -164,8 +164,8 @@ export function useVoiceActivity(options: VoiceActivityOptions = {}) {
       buffer.confidence.shift();
     }
 
-    // Detección de voz calibrada con umbrales más permisivos
-    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.20; // Más permisivo (era 0.25)
+    // Detección de voz calibrada según guía (voiceRatio 0.20 → 0.10)
+    const isVoiceDetected = rms > VAD_CONFIG.voiceThreshold && voiceRatio > 0.10; // 10% energía vocal más realista
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
     const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
     

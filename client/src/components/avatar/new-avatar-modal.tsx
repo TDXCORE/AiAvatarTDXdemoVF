@@ -134,13 +134,13 @@ export function NewAvatarModal({
 
   useEffect(() => {
     if (isOpen && !avatarClientRef.current) {
-      // Solo inicializar si no hay cliente activo
+      // Solo inicializar si no hay cliente activo - SIN cleanup automático
       const initTimer = setTimeout(() => {
         initializeAvatarSession();
       }, 500);
       return () => clearTimeout(initTimer);
     }
-    // ELIMINAR: else cleanup() - Esto causa el problema
+    // NO hacer cleanup automático - solo en unmount definitivo
   }, [isOpen]);
 
   useEffect(() => {

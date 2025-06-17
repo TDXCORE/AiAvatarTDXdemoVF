@@ -134,12 +134,15 @@ export class StreamingAvatarClient {
     });
 
     this.streamingAvatar.on(StreamingEvents.STREAM_DISCONNECTED, () => {
-      console.log('🔌 Stream disconnected');
+      console.log('🔌 Stream disconnected - attempting recovery...');
       this.onStateChange?.({ 
         phase: 'error', 
-        error: 'Stream disconnected',
+        error: 'Stream disconnected - reconnecting...',
         isConnected: false 
       });
+      
+      // Auto-retry con 3 intentos
+      this.attemptReconnection();
     });
 
     this.streamingAvatar.on(StreamingEvents.AVATAR_START_TALKING, (event) => {
@@ -279,5 +282,35 @@ export class StreamingAvatarClient {
 
   getSessionToken(): string | null {
     return this.sessionToken;
+  }
+
+  private async attemptReconnection(attempt: number = 1): Promise<void> {
+    const maxRetries = 3;
+    const retryDelay = attempt * 2000; // 2s, 4s, 6s
+    
+    if (attempt > maxRetries) {
+      console.error('🚫 Max reconnection attempts reached');
+      this.onStateChange?.({ 
+        phase: 'error', 
+        error: 'Failed to reconnect after 3 attempts',
+        isConnected: false 
+      });
+      return;
+    }
+
+    console.log(`🔄 Reconnection attempt ${attempt}/${maxRetries} in ${retryDelay}ms...`);
+    
+    setTimeout(async () => {
+      try {
+        if (this.videoElement) {
+          console.log(`🔄 Attempting reconnection ${attempt}...`);
+          await this.initialize(this.videoElement);
+          console.log('✅ Reconnection successful!');
+        }
+      } catch (error) {
+        console.error(`❌ Reconnection attempt ${attempt} failed:`, error);
+        this.attemptReconnection(attempt + 1);
+      }
+    }, retryDelay);
   }
 }

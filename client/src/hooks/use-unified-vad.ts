@@ -7,13 +7,14 @@ import { useAudioRecorder } from './use-audio-recorder';
 export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<void>) => {
   const { state } = useCallState();
   const vadSingletonRef = useRef<boolean>(false);
+  const initializationLockRef = useRef<boolean>(false);
 
-  // Single VAD instance with calibrated aggressive settings
+  // Single VAD instance with calibrated settings según guía
   const vad = useVoiceActivity({
     sensitivity: 75,
-    speechStartThreshold: 80,   // Más agresivo (era 120)
-    speechEndThreshold: 200,    // Respuesta más rápida (era 350)
-    minimumRecordingDuration: 250, // Permite palabras cortas (era 400)
+    speechStartThreshold: 80,   // Según guía
+    speechEndThreshold: 280,    // Según guía (280ms)
+    minimumRecordingDuration: 250, // Permite palabras cortas
     autoRecordingEnabled: true,
     continuousListening: true,
     onSpeechStart: () => {
@@ -71,11 +72,14 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       singletonActive: vadSingletonRef.current
     });
 
-    if (shouldVADBeActive && !vad.isListening && !vadSingletonRef.current) {
+    if (shouldVADBeActive && !vad.isListening && !vadSingletonRef.current && !initializationLockRef.current) {
       console.log('🎤 Starting unified VAD');
+      initializationLockRef.current = true;
       vadSingletonRef.current = true;
-      vad.startListening();
-    } else if (!shouldVADBeActive && vad.isListening) {
+      vad.startListening().finally(() => {
+        initializationLockRef.current = false;
+      });
+    } else if (!shouldVADBeActive && vad.isListening && !initializationLockRef.current) {
       console.log('🎤 Stopping unified VAD');
       vadSingletonRef.current = false;
       vad.stopListening();
