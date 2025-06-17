@@ -1,0 +1,66 @@
+🔇 Avatar stopped talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "listening", isConnected: undefined, prevPhase: "speaking"}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: true, isMuted: false, phase: "speaking", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: false, isCallActive: true, isMuted: false, phase: "speaking", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 Starting unified VAD
+🎤 Starting voice activity detection...
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 Starting unified VAD
+🎤 Starting voice activity detection...
+🎤 Audio stream obtained
+🎤 VAD initialized successfully
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 Audio stream obtained
+🎤 VAD initialized successfully
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
+🎤 VAD activation check: 
+Object {shouldVADBeActive: true, isCallActive: true, isMuted: false, phase: "listening", avatarConnected: true, …}
