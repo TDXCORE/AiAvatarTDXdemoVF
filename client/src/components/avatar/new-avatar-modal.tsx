@@ -47,12 +47,12 @@ export function NewAvatarModal({
   // Hook de transcripción
   const transcription = useTranscriptionState();
 
-  // Voice Activity Detection with optimized settings for better stability
+  // Voice Activity Detection with automatic activation after avatar speaks
   const vad = useVoiceActivity({
-    sensitivity: 75,                // Slightly less sensitive
-    speechStartThreshold: 500,      // More stable activation
-    speechEndThreshold: 2000,       // More patience for pauses
-    minimumRecordingDuration: 800,  // Longer minimum for stability
+    sensitivity: 75,
+    speechStartThreshold: 500,
+    speechEndThreshold: 2000,
+    minimumRecordingDuration: 800,
     autoRecordingEnabled: true,
     continuousListening: true,
     onSpeechStart: () => {
@@ -214,70 +214,80 @@ export function NewAvatarModal({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Force VAD activation function
-  const forceActivateVAD = async () => {
-    console.log('🎤 Force activating VAD - checking conditions...');
+  // Avatar event handlers for VAD control
+  const handleAvatarStartTalking = () => {
+    console.log('🎤 Avatar started talking - stopping VAD');
+    if (vad.isListening) {
+      vad.stopListening();
+      console.log('🛑 VAD stopped while avatar is speaking');
+    }
+  };
+
+  const handleAvatarStopTalking = () => {
+    console.log('🔇 Avatar stopped talking - will auto-activate VAD');
+    
+    // Auto-activate VAD after avatar finishes speaking
+    if (isCallActive && !isMuted) {
+      console.log('🎤 Scheduling VAD auto-activation in 1.5 seconds...');
+      setTimeout(() => {
+        autoActivateVAD();
+      }, 1500);
+    } else {
+      console.log('🎤 VAD auto-activation skipped due to call state:', {
+        isCallActive,
+        isMuted
+      });
+    }
+  };
+
+  // Automatic VAD activation function
+  const autoActivateVAD = async () => {
+    console.log('🎤 Auto-activating VAD after avatar finished speaking...');
     
     try {
-      // Verificar permisos de micrófono
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-      console.log('🎤 Microphone access verified for force activation');
-      
-      // Verificar condiciones
-      if (!vad.isListening && isCallActive && !isMuted) {
-        console.log('🎤 All conditions met - force starting VAD');
+      // Verificar que las condiciones son correctas
+      if (isCallActive && !isMuted && avatarState.phase === 'listening') {
+        console.log('🎤 Conditions met for auto-activation - starting VAD');
         
-        let retryCount = 0;
-        const maxRetries = 5;
+        // Parar VAD actual si está activo
+        if (vad.isListening) {
+          vad.stopListening();
+          console.log('🛑 Stopped current VAD for restart');
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
         
-        const tryActivation = async () => {
-          try {
-            console.log(`🎤 Force VAD activation attempt ${retryCount + 1}/${maxRetries}`);
-            
-            // Parar cualquier instancia previa
-            vad.stopListening();
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            // Activar VAD
-            await vad.startListening();
-            
-            // Verificar activación
-            setTimeout(() => {
-              if (vad.isListening) {
-                console.log('✅ VAD force-activated successfully and confirmed active');
-              } else {
-                console.warn('⚠️ VAD force activation failed - retrying...');
-                retryCount++;
-                if (retryCount < maxRetries) {
-                  setTimeout(tryActivation, 1000);
-                }
+        // Iniciar VAD
+        await vad.startListening();
+        console.log('🎤 VAD auto-activated and ready to listen');
+        
+        // Verificar después de un momento que está funcionando
+        setTimeout(() => {
+          if (vad.isListening) {
+            console.log('✅ VAD auto-activation confirmed - now listening automatically');
+          } else {
+            console.warn('⚠️ VAD auto-activation failed - trying manual restart');
+            // Retry una vez más
+            setTimeout(async () => {
+              try {
+                await vad.startListening();
+                console.log('🔄 VAD manual restart after auto-activation failure');
+              } catch (error) {
+                console.error('❌ VAD manual restart failed:', error);
               }
-            }, 800);
-            
-          } catch (error) {
-            retryCount++;
-            console.warn(`❌ VAD force activation failed (attempt ${retryCount}/${maxRetries}):`, error);
-            
-            if (retryCount < maxRetries) {
-              setTimeout(tryActivation, 1500);
-            } else {
-              console.error('💥 VAD force activation failed after all retries');
-            }
+            }, 500);
           }
-        };
+        }, 1000);
         
-        await tryActivation();
       } else {
-        console.log('🎤 VAD force activation skipped:', {
-          isListening: vad.isListening,
+        console.log('🎤 VAD auto-activation skipped - conditions not met:', {
           isCallActive,
           isMuted,
-          avatarPhase: avatarState.phase
+          avatarPhase: avatarState.phase,
+          vadListening: vad.isListening
         });
       }
     } catch (error) {
-      console.error('🎤 Cannot force activate VAD - no microphone access:', error);
+      console.error('❌ VAD auto-activation failed:', error);
     }
   };
 
@@ -312,35 +322,17 @@ export function NewAvatarModal({
         });
       });
 
-      // Listen for avatar events directly to trigger VAD
+      // Listen for avatar events to automatically control VAD
       if (avatarClientRef.current) {
-        // Add event listeners for avatar talking events
         const avatarElement = videoRef.current;
         if (avatarElement) {
-          avatarElement.addEventListener('stream_ready', () => {
-            console.log('🎥 Avatar stream ready event detected');
-          });
+          // Clean up existing listeners
+          avatarElement.removeEventListener('avatar_start_talking', handleAvatarStartTalking);
+          avatarElement.removeEventListener('avatar_stop_talking', handleAvatarStopTalking);
           
-          avatarElement.addEventListener('avatar_start_talking', () => {
-            console.log('🎤 Avatar started talking event detected');
-            // Stop VAD when avatar talks
-            if (vad.isListening) {
-              vad.stopListening();
-              console.log('🛑 VAD stopped while avatar talking');
-            }
-          });
-          
-          avatarElement.addEventListener('avatar_stop_talking', () => {
-            console.log('🔇 Avatar stopped talking event detected - activating VAD');
-            
-            // Force VAD activation with immediate retry
-            if (isCallActive && !isMuted) {
-              console.log('🎤 Avatar finished - force activating VAD in 1500ms');
-              setTimeout(async () => {
-                await forceActivateVAD();
-              }, 1500);
-            }
-          });
+          // Add new listeners
+          avatarElement.addEventListener('avatar_start_talking', handleAvatarStartTalking);
+          avatarElement.addEventListener('avatar_stop_talking', handleAvatarStopTalking);
         }
       }
 
@@ -479,6 +471,12 @@ export function NewAvatarModal({
     
     // Reset call state first
     setIsCallActive(false);
+    
+    // Clean up event listeners
+    if (videoRef.current) {
+      videoRef.current.removeEventListener('avatar_start_talking', handleAvatarStartTalking);
+      videoRef.current.removeEventListener('avatar_stop_talking', handleAvatarStopTalking);
+    }
     
     // Parar todas las actividades de audio
     vad.stopListening();
