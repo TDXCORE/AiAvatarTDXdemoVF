@@ -22,9 +22,10 @@ export class MicVADSingleton {
     baseUrl: '/vad',
     workletPath: '/vad/vad.worklet.bundle.min.js',
     modelURL: '/vad/silero_vad_v5.onnx',
-    onnxWASMBasePath: '/vad',
+    onnxWASMBasePath: '/vad/',
     ortConfig: {
-      wasmPaths: '/vad/'
+      wasmPaths: '/vad/',
+      executionProviders: ['wasm']
     }
   };
 
