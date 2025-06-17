@@ -1,0 +1,222 @@
+> **Objetivo** ─ Migrar tu VAD artesanal (FFT + RMS) a **MicVAD + Silero** del repo
+> [https://github.com/ricky0123/vad](https://github.com/ricky0123/vad) sin tocar el resto del pipeline
+> (Avatar HeyGen ⇄ STT Groq ⇄ LLM).
+
+---
+
+# 0. Crear rama de trabajo
+
+```bash
+git checkout -b feat/micvad-migration
+```
+
+---
+
+# 1. Instalar dependencias de runtime & build
+
+```bash
+# Runtime
+npm i @ricky0123/vad-web onnxruntime-web
+
+# Copiado de assets estáticos (Vite)
+npm i -D vite-plugin-static-copy
+```
+
+> **Next.js?**
+> Sustituye el plugin por
+> `const CopyPlugin = require('copy-webpack-plugin')` en `next.config.js`.
+
+---
+
+# 2. Copiar los assets del repo
+
+```
+public/vad/
+├─ vad.worklet.bundle.min.js
+├─ silero_vad.onnx
+├─ ort-wasm.wasm
+├─ ort-wasm-simd.wasm
+└─ ort-wasm-threaded.wasm
+```
+
+*(obtén los cinco ficheros desde
+`node_modules/@ricky0123/vad-web/dist/` o directo del repo GitHub).*
+
+### vite.config.ts (añade al array `plugins`)
+
+```ts
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+viteStaticCopy({
+  targets: [
+    { src: 'public/vad/**/*', dest: 'vad' }   // → dist/vad
+  ]
+});
+```
+
+---
+
+# 3. **lib/mic-vad.ts** – wrapper singleton
+
+```ts
+import { MicVAD } from '@ricky0123/vad-web';
+
+let instance: MicVAD | null = null;
+
+export async function getMicVAD() {
+  if (instance) return instance;
+
+  instance = await MicVAD.new({
+    onSpeechStart     : () => interruptStartCbs.forEach(cb => cb()),
+    onSpeechEnd       : (floats, sr) => {
+      const blob = floatsToWav(floats, sr);
+      speechEndCbs.forEach(cb => cb(blob));
+    },
+    baseAssetPath     : '/vad/',
+    onnxWASMBasePath  : '/vad/',
+    preSpeechPadFrames: 20,   // 250 ms
+    redemptionFrames  : 12    // 150 ms
+  });
+  return instance;
+}
+
+/* ––––– API pública ––––– */
+type B = Blob;
+export const onSpeechEnd      = (cb:(b:B)=>void)  => speechEndCbs.push(cb);
+export const onInterruptStart = (cb:()=>void)     => interruptStartCbs.push(cb);
+export function setMode(m:'normal'|'interrupt'){ mode = m }
+
+/* ––––– internos ––––– */
+let mode:'normal'|'interrupt' = 'normal';
+const speechEndCbs:B[]=[] as any;
+const interruptStartCbs:Function[]=[];
+
+function floatsToWav(f:Float32Array, sr:number){
+  const b=new ArrayBuffer(44+f.length*2),v=new DataView(b);
+  const w=str=>(o:number,s:string)=>[...s].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
+  const s=f.length; w(0,'RIFF')(8,'WAVEfmt '); v.setUint32(4,36+s*2,!0);
+  v.setUint32(16,16,!0); v.setUint16(20,1,!0); v.setUint16(22,1,!0);
+  v.setUint32(24,sr,!0); v.setUint32(28,sr*2,!0); v.setUint16(32,2,!0);
+  v.setUint16(34,16,!0); w(36,'data'); v.setUint32(40,s*2,!0);
+  for(let i=0;i<s;i++)v.setInt16(44+i*2,Math.max(-1,Math.min(1,f[i]))*32767,!0);
+  return new Blob([b],{type:'audio/wav'});
+}
+```
+
+---
+
+# 4. **hooks/use-mic-vad.ts** – hook React
+
+```ts
+import { useEffect, useState } from 'react';
+import { getMicVAD, onSpeechEnd, onInterruptStart, setMode } from '@/lib/mic-vad';
+
+export function useMicVAD(active:boolean,
+                          onTurn:(b:Blob)=>void,
+                          onInterruption:(b:Blob)=>void){
+  const [ready,setReady]=useState(false);
+
+  useEffect(()=>{                      // carga única
+    getMicVAD().then(v=>{ if(active) v.start(); setReady(true); });
+  },[]);
+
+  useEffect(()=>{                      // callbacks
+    onSpeechEnd(onTurn);
+    onInterruptStart(()=>setMode('interrupt'));
+  },[onTurn,onInterruption]);
+
+  useEffect(()=>{                      // on/off según fase
+    if(!ready) return;
+    getMicVAD().then(v=> active? v.start(): v.pause());
+    setMode(active?'normal':'interrupt');
+  },[active,ready]);
+}
+```
+
+---
+
+# 5. **Patch** de tu `NewAvatarModal.tsx`
+
+```tsx
+// ① Sustituye antiguo hook
+const listening = call.phase === 'listening';
+useMicVAD(listening,
+  blob => audioProcessor.processAudioMessage(blob,true,sessionToken),
+  blob => {
+    streamingAvatarClient.stop();          // corta avatar
+    sendBlobToGroq(blob);                  // STT inmediato
+  }
+);
+
+// ② Retira use-unified-vad
+// ③ Elimina import & código de useAudioRecorder si ya no lo usas
+```
+
+---
+
+# 6. **sendBlobToGroq.ts**
+
+```ts
+export async function sendBlobToGroq(blob:Blob){
+  const fd=new FormData();
+  fd.append('file',blob,'speech.wav');
+  fd.append('model','whisper-large-v3');
+  const r=await fetch('https://api.groq.com/v1/audio/transcriptions',{
+    method:'POST',
+    headers:{Authorization:`Bearer ${import.meta.env.VITE_GROQ_API}`},
+    body:fd
+  });
+  const {text}=await r.json();
+  await fetch('/api/voice/llm',{method:'POST',body:JSON.stringify({text})});
+}
+```
+
+---
+
+# 7. Eliminar legacy
+
+```
+git rm src/hooks/use-unified-vad.ts
+git rm src/hooks/use-voice-activity.ts
+```
+
+*(o comenta hasta validar).*
+
+Actualiza imports rotos.
+
+---
+
+# 8. QA paso a paso
+
+| Acción                 | Log esperado                                           |
+| ---------------------- | ------------------------------------------------------ |
+| Abres modal            | `MicVAD ready` (1 vez)                                 |
+| Avatar saluda          | `phase=speaking`                                       |
+| Empiezas a interrumpir | `▶️ speech` → `Avatar stop() 200`                      |
+| Terminas frase         | `⏹️ speechEnd` (Blob \~10 kB) → `POST /groq/audio` 200 |
+| LLM responde           | Avatar vuelve a hablar                                 |
+
+Tiempo total ***user stops speaking → avatar responde* ≤ 800 ms**.
+
+---
+
+# 9. Commit & PR
+
+```bash
+git add .
+git commit -m "feat: migrate to MicVAD (Silero) + Groq STT"
+git push origin feat/micvad-migration
+# → abre Pull Request
+```
+
+---
+
+## 🎯 Con esto obtienes
+
+* **Un solo `getUserMedia`** (MicVAD lo gestiona).
+* Detección de voz robusta sin calibrar umbrales.
+* Interrupción inmediata del avatar.
+* Audio 16 kHz WAV directo a Groq STT (`≈` > 97 % precisión).
+* Latencia sub-segundo en modo turn-taking.
+
+Si algún paso difiere de tu estructura (monorepo, Next 12, etc.) dime y ajustamos.
