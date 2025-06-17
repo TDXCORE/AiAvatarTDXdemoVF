@@ -39,6 +39,8 @@ export function useAudioRecorder(options: AudioRecorderOptions = {}) {
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(0);
   const maxRecordingTime = 30000; // 30 segundos máximo
+  const externalStreamRef = useRef<MediaStream | null>(null); // Add a ref to store external stream
+  const useExternalStream = false;
 
   const startRecording = useCallback(async () => {
     try {
@@ -50,21 +52,29 @@ export function useAudioRecorder(options: AudioRecorderOptions = {}) {
         return false;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: config.voiceEnhancement,
-          noiseSuppression: config.voiceEnhancement,
-          autoGainControl: config.voiceEnhancement,
-          sampleRate: 16000,  // Optimizado para voz
-          channelCount: 1,    // Mono para voz
-          volume: 1.0,
-          // Configuraciones adicionales para calidad de voz
-          googEchoCancellation: config.voiceEnhancement,
-          googAutoGainControl: config.voiceEnhancement,
-          googNoiseSuppression: config.voiceEnhancement,
-          googHighpassFilter: true,
-        }
-      });
+      let stream: MediaStream;
+
+      if (externalStreamRef.current) {
+        console.log('🎤 Recorder: Usando stream externo del VAD');
+        stream = externalStreamRef.current;
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: config.voiceEnhancement,
+            noiseSuppression: config.voiceEnhancement,
+            autoGainControl: config.voiceEnhancement,
+            sampleRate: 16000,  // Optimizado para voz
+            channelCount: 1,    // Mono para voz
+            volume: 1.0,
+            // Configuraciones adicionales para calidad de voz
+            googEchoCancellation: config.voiceEnhancement,
+            googAutoGainControl: config.voiceEnhancement,
+            googNoiseSuppression: config.voiceEnhancement,
+            googHighpassFilter: true,
+          }
+        });
+      }
+
 
       const recorder = await AudioUtils.startRecording(stream);
       if (!recorder) {
@@ -98,7 +108,13 @@ export function useAudioRecorder(options: AudioRecorderOptions = {}) {
       onError?.('Failed to start recording. Please try again.');
       return false;
     }
-  }, [isRecording, onRecordingStart, onError, config]);
+  }, [isRecording, onRecordingStart, onError, config, useExternalStream]);
+
+  // 🔥 MÉTODO PARA RECIBIR STREAM EXTERNO DEL VAD
+  const setExternalStream = useCallback((stream: MediaStream) => {
+    console.log('🎤 Recorder: Recibiendo stream externo del VAD');
+    externalStreamRef.current = stream;
+  }, []);
 
   const stopRecording = useCallback(async () => {
     if (!isRecording || !mediaRecorderRef.current) return null;
@@ -182,5 +198,6 @@ export function useAudioRecorder(options: AudioRecorderOptions = {}) {
     startRecording,
     stopRecording,
     cancelRecording,
+    setExternalStream //expose new method
   };
 }

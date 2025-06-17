@@ -112,7 +112,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     return validSamples > 0 ? Math.sqrt(sum / validSamples) : 0;
   }, []);
 
-  // Single recorder instance
+  // Single recorder instance with shared stream support
   const recorder = useAudioRecorder({
     onRecordingStop: async (result) => {
       if (result.audioBlob) {
@@ -122,6 +122,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     onError: (error) => {
       console.error('Unified VAD recording error:', error);
     },
+    useExternalStream: true, // Usar stream externo del VAD
   });
 
   const shouldActivateRecording = () => {
@@ -173,8 +174,9 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
     const isSilence = rms < VAD_CONFIG.silenceThreshold;
     const isAmbientNoise = rms > VAD_CONFIG.silenceThreshold && rms < VAD_CONFIG.voiceThreshold;
     
-    // Debug logging cada 30 frames (aproximadamente cada segundo)
-    if (currentTime % 30 === 0) {
+    // 🔥 LOGS MEJORADOS: Cada 10 frames (más frecuente) + métricas útiles
+    const frameCount = Math.floor(currentTime / 100); // Cada ~100ms
+    if (frameCount % 10 === 0) {
       console.log('🎤 VAD Debug:', {
         rms: rms.toFixed(2),
         voiceRatio: voiceRatio.toFixed(3),
@@ -182,7 +184,10 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         isVoiceDetected,
         isSilence,
         voiceFrames: internalState.consecutiveVoiceFrames,
-        silenceFrames: internalState.consecutiveSilenceFrames
+        silenceFrames: internalState.consecutiveSilenceFrames,
+        vadState,
+        recorderStatus: recorder.isRecording ? 'recording' : 'idle',
+        streamActive: streamRef.current ? 'active' : 'inactive'
       });
     }
     
@@ -201,13 +206,28 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
         
         timeoutsRef.current.start = setTimeout(() => {
           if (!internalState.isSpeaking && internalState.consecutiveVoiceFrames >= 1) {
-            console.log('🎤 Unified VAD: Speech detected - starting recording');
+            console.log('🎤 ✅ VAD: Speech detected - starting recording');
+            console.log('🎤 📊 VAD Metrics:', {
+              rms: rms.toFixed(2),
+              voiceRatio: voiceRatio.toFixed(3),
+              confidence: overallConfidence.toFixed(3),
+              consecutiveFrames: internalState.consecutiveVoiceFrames
+            });
             internalState.isSpeaking = true;
             internalState.speechStartTime = currentTime;
             setVadState('speaking');
             
             if (shouldActivateRecording()) {
-              recorder.startRecording();
+              const recordingStarted = await recorder.startRecording();
+              console.log('🎤 🔴 Recording start result:', recordingStarted);
+            } else {
+              console.log('🎤 ⚠️ Recording not activated:', {
+                isCallActive: state.isCallActive,
+                isMuted: state.isMuted,
+                phase: state.phase,
+                avatarConnected: state.avatarConnected,
+                recorderBusy: recorder.isRecording
+              });
             }
           }
         }, VAD_CONFIG.speechStartDelay);
@@ -233,12 +253,22 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
           
           timeoutsRef.current.end = setTimeout(() => {
             if (internalState.isSpeaking) {
-              console.log('🎤 Unified VAD: Speech ended - stopping recording');
+              const finalSpeechDuration = currentTime - internalState.speechStartTime;
+              console.log('🎤 🛑 VAD: Speech ended - stopping recording');
+              console.log('🎤 📊 Final metrics:', {
+                speechDuration: `${finalSpeechDuration}ms`,
+                silenceDuration: `${silenceDuration}ms`,
+                finalRMS: rms.toFixed(2),
+                consecutiveSilenceFrames: internalState.consecutiveSilenceFrames
+              });
               internalState.isSpeaking = false;
               setVadState('ending');
               
               if (recorder.isRecording) {
-                recorder.stopRecording();
+                const stopResult = await recorder.stopRecording();
+                console.log('🎤 ⏹️ Recording stop result:', stopResult ? 'success' : 'failed');
+              } else {
+                console.log('🎤 ⚠️ Recorder was not recording when VAD ended');
               }
               
               // Cooldown optimizado según guía (200ms en lugar de 1000ms)
@@ -319,6 +349,12 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
       // Conectar stream al analizador
       const source = audioContextRef.current.createMediaStreamSource(stream);
       source.connect(analyserRef.current);
+
+      // 🔥 COMPARTIR STREAM CON RECORDER - Evita doble getUserMedia
+      if (recorder.setExternalStream) {
+        recorder.setExternalStream(stream);
+        console.log('🎤 Stream del VAD compartido con recorder exitosamente');
+      }
 
       // Resetear estado
       stateRef.current = {
