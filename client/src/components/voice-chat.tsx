@@ -13,9 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { useVoiceActivity } from '@/hooks/use-voice-activity';
 import { useAudioRecorder } from '@/hooks/use-audio-recorder';
 import { useAudioProcessor } from '@/hooks/use-audio-processor';
+import { useUnifiedVAD } from '@/hooks/use-unified-vad';
 import { apiRequest } from '@/lib/queryClient';
 import { ChatMessage, VoiceSettings } from '@/types/voice';
 import { Phone, MoreVertical, AlertTriangle, Bot } from 'lucide-react';
@@ -48,39 +48,18 @@ export function VoiceChat() {
     },
   });
 
-  // Voice Activity Detection
-  const vad = useVoiceActivity({
-    sensitivity: settings.vadSensitivity,
-    onSpeechStart: () => {
-      console.log('Speech started');
-    },
-    onSpeechEnd: () => {
-      console.log('Speech ended');
-      if (settings.autoSend && recorder.isRecording) {
-        handleStopRecording();
-      }
-    },
-  });
-
-  // Audio Recorder
-  const recorder = useAudioRecorder({
-    onRecordingStart: () => {
-      setShowRecorder(true);
-      vad.startListening();
-    },
-    onRecordingStop: async (result) => {
-      setShowRecorder(false);
-      vad.stopListening();
-      await processAudioRecording(result.audioBlob);
-    },
-    onError: (errorMessage) => {
-      setError(errorMessage);
+  // Unified VAD system for voice chat
+  const { vad, recorder, isVADActive } = useUnifiedVAD(async (audioBlob: Blob) => {
+    try {
+      await processAudioRecording(audioBlob);
+    } catch (error) {
+      console.error('Error processing audio from VAD:', error);
       toast({
-        title: 'Recording Error',
-        description: errorMessage,
+        title: 'Processing Error',
+        description: error instanceof Error ? error.message : 'Failed to process audio',
         variant: 'destructive',
       });
-    },
+    }
   });
 
   // Audio processor hook
@@ -196,17 +175,20 @@ export function VoiceChat() {
   };
 
   const handleStartRecording = () => {
-    recorder.startRecording();
+    // Manual recording is now handled by unified VAD
+    console.log('Manual recording trigger - handled by unified VAD');
   };
 
   const handleStopRecording = () => {
-    recorder.stopRecording();
+    // Manual stop is now handled by unified VAD
+    console.log('Manual stop trigger - handled by unified VAD');
   };
 
   const handleCancelRecording = () => {
-    recorder.cancelRecording();
+    if (recorder.isRecording) {
+      recorder.cancelRecording();
+    }
     setShowRecorder(false);
-    vad.stopListening();
   };
 
   const handlePlayAudio = (audioData: string) => {
@@ -222,11 +204,7 @@ export function VoiceChat() {
     scrollToBottom();
   }, [messages, isTyping]);
 
-  // Initialize VAD on mount
-  useEffect(() => {
-    vad.startListening();
-    return () => vad.stopListening();
-  }, []);
+  // VAD is now automatically managed by useUnifiedVAD based on call state
 
   return (
     <div className="h-screen flex flex-col bg-[hsl(60,4.8%,95.9%)]">
@@ -271,7 +249,7 @@ export function VoiceChat() {
       </header>
 
       {/* VAD Status Banner */}
-      {vad.vadDetected && (
+      {isVADActive && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800">
           <div className="flex items-center justify-center space-x-2">
             <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
@@ -320,7 +298,7 @@ export function VoiceChat() {
       {/* Voice Controls */}
       <VoiceControls
         isRecording={recorder.isRecording}
-        vadDetected={vad.vadDetected}
+        vadDetected={vad.isVoiceActive}
         recordingDuration={recorder.recordingDuration}
         isProcessing={isProcessing}
         onStartRecording={handleStartRecording}
