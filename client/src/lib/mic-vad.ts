@@ -8,25 +8,38 @@ let isInitializing = false;
 const speechStartCallbacks: (() => void)[] = [];
 const speechEndCallbacks: ((audio: Float32Array) => void)[] = [];
 const vadReadyCallbacks: (() => void)[] = [];
+const vadMisfireCallbacks: (() => void)[] = [];
 
 export interface MicVADConfig {
-  baseUrl?: string;
+  baseAssetPath?: string;
   onnxWASMBasePath?: string;
-  workletPath?: string;
+  workletURL?: string;
   modelURL?: string;
-  ortConfig?: any;
+  model?: 'v5' | 'legacy';
+  positiveSpeechThreshold?: number;
+  negativeSpeechThreshold?: number;
+  redemptionFrames?: number;
+  frameSamples?: number;
+  preSpeechPadFrames?: number;
+  minSpeechFrames?: number;
 }
 
 export class MicVADSingleton {
   private static defaultConfig: MicVADConfig = {
-    baseUrl: '/vad',
-    workletPath: '/vad/vad.worklet.bundle.min.js',
-    modelURL: '/vad/silero_vad_v5.onnx',
+    // Optimized configuration for Silero v5 and natural conversation
+    model: 'v5',
+    baseAssetPath: '/vad',
     onnxWASMBasePath: '/vad/',
-    ortConfig: {
-      wasmPaths: '/vad/',
-      executionProviders: ['wasm']
-    }
+    workletURL: '/vad/vad.worklet.bundle.min.js',
+    modelURL: '/vad/silero_vad_v5.onnx',
+    
+    // Silero v5 optimized parameters for natural conversation
+    frameSamples: 512,                    // v5 uses 512 instead of 1536
+    positiveSpeechThreshold: 0.4,         // Sensitive but not too aggressive
+    negativeSpeechThreshold: 0.35,        // Prevents premature cutoffs
+    preSpeechPadFrames: 3,                // Captures natural speech start
+    redemptionFrames: 24,                 // Allows natural pauses
+    minSpeechFrames: 9,                   // Filters out short noises
   };
 
   static async getInstance(config?: Partial<MicVADConfig>): Promise<MicVAD> {
@@ -49,32 +62,60 @@ export class MicVADSingleton {
     }
 
     isInitializing = true;
-    console.log('🎤 Initializing MicVAD singleton...');
+    console.log('🎤 Initializing MicVAD singleton with Silero v5...');
 
     try {
       const finalConfig = { ...this.defaultConfig, ...config };
       
+      console.log('🎤 MicVAD Config:', {
+        model: finalConfig.model,
+        frameSamples: finalConfig.frameSamples,
+        positiveSpeechThreshold: finalConfig.positiveSpeechThreshold,
+        negativeSpeechThreshold: finalConfig.negativeSpeechThreshold,
+        preSpeechPadFrames: finalConfig.preSpeechPadFrames,
+        redemptionFrames: finalConfig.redemptionFrames,
+        minSpeechFrames: finalConfig.minSpeechFrames
+      });
+      
       instance = await MicVAD.new({
-        workletURL: finalConfig.workletPath,
-        modelURL: finalConfig.modelURL,
-        ortConfig: finalConfig.ortConfig,
+        // Asset paths - using correct property names
+        baseAssetPath: finalConfig.baseAssetPath,
+        onnxWASMBasePath: finalConfig.onnxWASMBasePath,
         
+        // Model configuration
+        model: finalConfig.model,
+        frameSamples: finalConfig.frameSamples,
+        
+        // Speech detection thresholds
+        positiveSpeechThreshold: finalConfig.positiveSpeechThreshold,
+        negativeSpeechThreshold: finalConfig.negativeSpeechThreshold,
+        redemptionFrames: finalConfig.redemptionFrames,
+        preSpeechPadFrames: finalConfig.preSpeechPadFrames,
+        minSpeechFrames: finalConfig.minSpeechFrames,
+        
+        // Event callbacks
         onSpeechStart: () => {
-          console.log('🎤 MicVAD: Speech started');
+          console.log('🎤 MicVAD: Speech started (Silero v5)');
           speechStartCallbacks.forEach(cb => cb());
         },
         
         onSpeechEnd: (audio: Float32Array) => {
-          console.log('🎤 MicVAD: Speech ended, audio length:', audio.length);
+          console.log('🎤 MicVAD: Speech ended, audio samples:', audio.length, 'duration:', (audio.length / 16000).toFixed(2) + 's');
           speechEndCallbacks.forEach(cb => cb(audio));
         },
         
         onVADMisfire: () => {
-          console.log('🎤 MicVAD: VAD misfire detected');
+          console.log('🎤 MicVAD: VAD misfire detected (speech too short)');
+          vadMisfireCallbacks.forEach(cb => cb());
+        },
+        
+        onFrameProcessed: (probabilities) => {
+          // Optional: Log frame processing for debugging
+          // console.log('🎤 Frame processed:', probabilities);
         }
       });
 
-      console.log('✅ MicVAD singleton initialized successfully');
+      console.log('✅ MicVAD singleton initialized successfully with Silero v5');
       vadReadyCallbacks.forEach(cb => cb());
       return instance;
 
@@ -122,7 +163,8 @@ export class MicVADSingleton {
   }
 
   static isListening(): boolean {
-    return instance ? instance.listening : false;
+    // Since listening property is private, we'll track state internally
+    return instance !== null && !isInitializing;
   }
 
   // Event subscription methods

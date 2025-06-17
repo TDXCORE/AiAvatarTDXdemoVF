@@ -4,8 +4,9 @@ import { createContext, useContext, useReducer, ReactNode } from 'react';
 export interface CallState {
   isCallActive: boolean;
   isMuted: boolean;
-  phase: 'idle' | 'speaking' | 'listening';
+  phase: 'idle' | 'connecting' | 'ready' | 'listening' | 'speaking' | 'processing';
   avatarConnected: boolean;
+  vadActive: boolean;
 }
 
 type CallAction = 
@@ -13,6 +14,7 @@ type CallAction =
   | { type: 'SET_MUTED'; muted: boolean }
   | { type: 'SET_PHASE'; phase: CallState['phase'] }
   | { type: 'SET_AVATAR_CONNECTED'; connected: boolean }
+  | { type: 'SET_VAD_ACTIVE'; active: boolean }
   | { type: 'SOFT_RESET' }
   | { type: 'RESET' };
 
@@ -21,6 +23,7 @@ const defaultState: CallState = {
   isMuted: false,
   phase: 'idle',
   avatarConnected: false,
+  vadActive: false,
 };
 
 const callReducer = (state: CallState, action: CallAction): CallState => {
@@ -33,6 +36,8 @@ const callReducer = (state: CallState, action: CallAction): CallState => {
       return { ...state, phase: action.phase };
     case 'SET_AVATAR_CONNECTED':
       return { ...state, avatarConnected: action.connected };
+    case 'SET_VAD_ACTIVE':
+      return { ...state, vadActive: action.active };
     case 'SOFT_RESET':
       return { 
         ...state, 

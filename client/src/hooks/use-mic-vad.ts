@@ -7,6 +7,7 @@ export interface UseMicVADOptions {
   onSpeechEnd?: (audioBlob: Blob) => Promise<void>;
   onSpeechStart?: () => void;
   onInterrupt?: () => void;
+  onVADMisfire?: () => void;
   autoStart?: boolean;
 }
 
@@ -20,7 +21,7 @@ export interface UseMicVADReturn {
 }
 
 export const useMicVAD = (options: UseMicVADOptions = {}): UseMicVADReturn => {
-  const { state } = useCallState();
+  const { state, dispatch } = useCallState();
   const [isReady, setIsReady] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +32,7 @@ export const useMicVAD = (options: UseMicVADOptions = {}): UseMicVADReturn => {
     onSpeechEnd,
     onSpeechStart,
     onInterrupt,
+    onVADMisfire,
     autoStart = true
   } = options;
 

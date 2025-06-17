@@ -24,11 +24,18 @@ const upload = multer({
   },
 });
 
-// Initialize psychological agent and HeyGen service
-const psychologicalAgent = new PsychologicalAgent(storage);
-const heygenService = new HeyGenService();
+// Initialize services - will be done after env vars are loaded
+let psychologicalAgent: PsychologicalAgent;
+let heygenService: HeyGenService;
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize services after environment variables are loaded
+  if (!psychologicalAgent) {
+    psychologicalAgent = new PsychologicalAgent(storage);
+  }
+  if (!heygenService) {
+    heygenService = new HeyGenService();
+  }
 
   // Get or create conversation
   app.post("/api/conversations", async (req, res) => {

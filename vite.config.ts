@@ -7,30 +7,12 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 export default defineConfig({
   plugins: [
     react(),
-    viteStaticCopy({
-      targets: [
-        {
-          src: 'node_modules/@ricky0123/vad-web/dist/vad.worklet.bundle.min.js',
-          dest: 'vad'
-        },
-        {
-          src: 'node_modules/@ricky0123/vad-web/dist/silero_vad_v5.onnx',
-          dest: 'vad'
-        },
-        {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm.wasm',
-          dest: 'vad'
-        },
-        {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm-simd.wasm',
-          dest: 'vad'
-        },
-        {
-          src: 'node_modules/onnxruntime-web/dist/ort-wasm-threaded.wasm',
-          dest: 'vad'
-        }
-      ]
-    }),
+    // VAD assets are already copied to client/public/vad/
+    // viteStaticCopy({
+    //   targets: [
+    //     // Assets already available in client/public/vad/
+    //   ]
+    // }),
     runtimeErrorOverlay(),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined

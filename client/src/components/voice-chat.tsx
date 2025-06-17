@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { useAudioRecorder } from '@/hooks/use-audio-recorder';
 import { useAudioProcessor } from '@/hooks/use-audio-processor';
 import { useMicVAD } from '@/hooks/use-mic-vad';
 import { apiRequest } from '@/lib/queryClient';
@@ -188,9 +187,6 @@ export function VoiceChat() {
   };
 
   const handleCancelRecording = () => {
-    if (recorder.isRecording) {
-      recorder.cancelRecording();
-    }
     setShowRecorder(false);
   };
 
@@ -252,7 +248,7 @@ export function VoiceChat() {
       </header>
 
       {/* VAD Status Banner */}
-      {isVADActive && (
+      {micVAD.isListening && (
         <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 text-sm text-yellow-800">
           <div className="flex items-center justify-center space-x-2">
             <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
@@ -300,9 +296,9 @@ export function VoiceChat() {
 
       {/* Voice Controls */}
       <VoiceControls
-        isRecording={recorder.isRecording}
-        vadDetected={vad.isVoiceActive}
-        recordingDuration={recorder.recordingDuration}
+        isRecording={false}
+        vadDetected={micVAD.isListening}
+        recordingDuration={0}
         isProcessing={isProcessing}
         onStartRecording={handleStartRecording}
         onStopRecording={handleStopRecording}
@@ -314,7 +310,7 @@ export function VoiceChat() {
       {/* Voice Recorder Overlay */}
       <VoiceRecorder
         isOpen={showRecorder}
-        recordingDuration={recorder.recordingDuration}
+        recordingDuration={0}
         onCancel={handleCancelRecording}
         onStop={handleStopRecording}
       />
