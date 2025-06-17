@@ -1,0 +1,46 @@
+🎭 Creando instancia de StreamingAvatar...
+🎬 Iniciando avatar...
+🎭 Avatar state changed: 
+Object {phase: "connecting", isConnected: undefined, prevPhase: "initializing"}
+🎉 StreamingAvatar initialized successfully
+🎥 Stream ready: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "ready", isConnected: true, prevPhase: "speaking"}
+🎤 Microphone permissions granted for call
+🎤 Sending initial greeting...
+🎤 Enviando respuesta del agente: "¡Hola! Soy el Dr. Carlos Mendoza. ¿En qué puedo ayudarte hoy?"
+🎭 Avatar state changed: 
+Object {phase: "speaking", isConnected: undefined, prevPhase: "ready"}
+✅ Agent response sent to avatar successfully
+🎤 Avatar started talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "speaking", isConnected: undefined, prevPhase: "speaking"}
+🎤 VAD[vad_1750193433840] Status: 
+Object {shouldVADBeActive: false, isCallActive: true, phase: "speaking", avatarConnected: true, currentlyListening: false, …}
+🎤 VAD[vad_1750193433830] Status: 
+Object {shouldVADBeActive: false, isCallActive: true, phase: "speaking", avatarConnected: true, currentlyListening: false, …}
+🔇 Avatar stopped talking: 
+CustomEvent {isTrusted: false}
+🎭 Avatar state changed: 
+Object {phase: "listening", isConnected: undefined, prevPhase: "speaking"}
+🎤 🟢 Starting unified VAD
+🎤 VAD[vad_1750193433840] Starting initialization...
+🎤 Starting unified VAD with integrated recording...
+🎤 🟢 Starting unified VAD
+🎤 VAD[vad_1750193433830] Starting initialization...
+🎤 Starting unified VAD with integrated recording...
+🎤 ✅ Single audio stream obtained for unified VAD: 
+Object {streamId: "17988592-68a8-40c5-bb47-c63680165d84", tracksCount: 1, trackId: "c7392ce5-9bb2-475b-9352-3eb564d643f2", trackState: "live", settings: {…}}
+🎤 ✅ Unified VAD initialized successfully
+🎤 ✅ Single audio stream obtained for unified VAD: 
+Object {streamId: "85b1c88f-29f6-494d-8995-f2004eccc244", tracksCount: 1, trackId: "a2fa4285-02e7-451d-a809-e1dac5b2b87b", trackState: "live", settings: {…}}
+🎤 ✅ Unified VAD initialized successfully
+🎤 ✅ Unified VAD analysis loop started
+🎤 VAD[vad_1750193433840] Status: 
+Object {shouldVADBeActive: true, isCallActive: true, phase: "listening", avatarConnected: true, currentlyListening: true, …}
+🎤 VAD[vad_1750193433840] Status: 
+Object {shouldVADBeActive: true, isCallActive: true, phase: "listening", avatarConnected: true, currentlyListening: true, …}
+🎤 VAD[vad_1750193433840] Status: 
+Object {shouldVADBeActive: true, isCallActive: true, phase: "listening", avatarConnected: true, currentlyListening: true, …}
