@@ -204,7 +204,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
           clearTimeout(timeoutsRef.current.start);
         }
         
-        timeoutsRef.current.start = setTimeout(() => {
+        timeoutsRef.current.start = setTimeout(async () => {
           if (!internalState.isSpeaking && internalState.consecutiveVoiceFrames >= 1) {
             console.log('🎤 ✅ VAD: Speech detected - starting recording');
             console.log('🎤 📊 VAD Metrics:', {
@@ -251,7 +251,7 @@ export const useUnifiedVAD = (onAudioProcessed: (audioBlob: Blob) => Promise<voi
             clearTimeout(timeoutsRef.current.end);
           }
           
-          timeoutsRef.current.end = setTimeout(() => {
+          timeoutsRef.current.end = setTimeout(async () => {
             if (internalState.isSpeaking) {
               const finalSpeechDuration = currentTime - internalState.speechStartTime;
               console.log('🎤 🛑 VAD: Speech ended - stopping recording');
